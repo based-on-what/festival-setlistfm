@@ -37,6 +37,25 @@
         <h2 class="card-title">Your Festival Lineup</h2>
         <p id="empty-list-msg" class="muted">No artists added yet.</p>
         <ul id="artist-list" class="artist-list"></ul>
+
+        <!-- ── Playlist options ── -->
+        <div class="options-group hidden" id="options-group">
+          <label class="option-label">
+            <input type="checkbox" id="opt-prefer-original" checked />
+            <span>
+              <strong>Prefer original recording</strong>
+              <span class="option-hint">When an artist plays a cover, save the original version. If not found on Spotify, falls back to the cover by the performing artist.</span>
+            </span>
+          </label>
+          <label class="option-label">
+            <input type="checkbox" id="opt-include-taped" />
+            <span>
+              <strong>Include taped / backing tracks</strong>
+              <span class="option-hint">Include songs played from a recording (not performed live), whether by the artist or not.</span>
+            </span>
+          </label>
+        </div>
+
         <button id="create-btn" class="btn btn-primary btn-full hidden" onclick="createPlaylist()">
           <span id="create-label">Create Festival Setlist</span>
           <span id="create-spinner" class="spinner hidden"></span>
@@ -54,8 +73,6 @@
         <button class="btn btn-ghost btn-full" onclick="resetResult()">Create Another</button>
       </section>
     </main>
-
-
   </div>
 
   <footer>

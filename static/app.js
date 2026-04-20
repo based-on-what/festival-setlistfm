@@ -6,7 +6,10 @@ let dragSrcIndex = null;
   const saved = localStorage.getItem("festival-theme") || "dark";
   document.documentElement.setAttribute("data-theme", saved);
   document.getElementById("theme-toggle").addEventListener("click", () => {
-    const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    const next =
+      document.documentElement.getAttribute("data-theme") === "dark"
+        ? "light"
+        : "dark";
     document.documentElement.setAttribute("data-theme", next);
     localStorage.setItem("festival-theme", next);
   });
@@ -43,10 +46,15 @@ document.getElementById("artist-input").addEventListener("keydown", (e) => {
 });
 
 document.addEventListener("click", (e) => {
-  if (!e.target.closest(".search-box") && !e.target.closest(".dropdown")) {
+  if (
+    !e.target.closest(".search-box") &&
+    !e.target.closest(".dropdown")
+  ) {
     document.getElementById("search-results").classList.add("hidden");
   }
 });
+
+// ── Search (now powered by setlist.fm) ────────────────────────────────────────
 
 async function searchArtists(q) {
   clearError("search-error");
@@ -75,21 +83,25 @@ function renderDropdown(artists) {
   artists.forEach((artist) => {
     const item = document.createElement("div");
     item.className = "dropdown-item";
-    const thumb = artist.image
-      ? `<img class="dropdown-thumb" src="${artist.image}" alt="" loading="lazy" />`
-      : `<div class="dropdown-thumb-placeholder">🎤</div>`;
-    const metaParts = [];
-    if (artist.genres?.length) metaParts.push(artist.genres.join(", "));
-    if (artist.country) metaParts.push(artist.country);
-    const meta = metaParts.length
-      ? `<span class="dropdown-meta">${escapeHtml(metaParts.join(" · "))}</span>`
+
+    // setlist.fm doesn't provide images — always show placeholder
+    const thumb = `<div class="dropdown-thumb-placeholder">🎤</div>`;
+
+    // Use disambiguation as subtitle when available (e.g. "US rock band")
+    const sub = artist.disambiguation
+      ? `<span class="dropdown-meta">${escapeHtml(artist.disambiguation)}</span>`
       : "";
-    item.innerHTML = `${thumb}<div class="dropdown-info"><span class="dropdown-name">${escapeHtml(artist.name)}</span>${meta}</div>`;
+
+    item.innerHTML = `${thumb}<div class="dropdown-info"><span class="dropdown-name">${escapeHtml(
+      artist.name
+    )}</span>${sub}</div>`;
     item.addEventListener("click", () => addArtist(artist));
     container.appendChild(item);
   });
   container.classList.remove("hidden");
 }
+
+// ── Artist list management ─────────────────────────────────────────────────────
 
 function addArtist(artist) {
   if (selectedArtists.find((a) => a.id === artist.id)) {
@@ -114,29 +126,35 @@ function renderArtistList() {
   const list = document.getElementById("artist-list");
   const empty = document.getElementById("empty-list-msg");
   const createBtn = document.getElementById("create-btn");
+  const optionsGroup = document.getElementById("options-group");
   list.innerHTML = "";
 
   if (!selectedArtists.length) {
     empty.classList.remove("hidden");
     createBtn.classList.add("hidden");
+    optionsGroup.classList.add("hidden");
     return;
   }
 
   empty.classList.add("hidden");
   createBtn.classList.remove("hidden");
+  optionsGroup.classList.remove("hidden");
 
   selectedArtists.forEach((artist, index) => {
     const li = document.createElement("li");
     li.className = "artist-item";
     li.draggable = true;
-    const thumb = artist.image
-      ? `<img class="artist-item-thumb" src="${artist.image}" alt="" loading="lazy" />`
-      : `<div class="artist-item-thumb-placeholder">🎤</div>`;
+
+    // setlist.fm has no images
+    const thumb = `<div class="artist-item-thumb-placeholder">🎤</div>`;
+
     li.innerHTML = `
       <span class="drag-handle" title="Drag to reorder">⠿</span>
       ${thumb}
       <span class="artist-item-name">${escapeHtml(artist.name)}</span>
-      <button class="remove-btn" title="Remove" onclick="removeArtist('${artist.id}')">✕</button>
+      <button class="remove-btn" title="Remove" onclick="removeArtist('${escapeHtml(
+        artist.id
+      )}')">✕</button>
     `;
 
     li.addEventListener("dragstart", (e) => {
@@ -174,11 +192,16 @@ function renderArtistList() {
   });
 }
 
+// ── Create playlist ────────────────────────────────────────────────────────────
+
 async function createPlaylist() {
   clearError("create-error");
   const btn = document.getElementById("create-btn");
   const label = document.getElementById("create-label");
   const spinner = document.getElementById("create-spinner");
+
+  const preferOriginal = document.getElementById("opt-prefer-original").checked;
+  const includeTaped = document.getElementById("opt-include-taped").checked;
 
   btn.disabled = true;
   label.textContent = "Building playlist…";
@@ -188,7 +211,11 @@ async function createPlaylist() {
     const res = await fetch("/api/create-playlist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ artists: selectedArtists }),
+      body: JSON.stringify({
+        artists: selectedArtists,
+        prefer_original: preferOriginal,
+        include_taped: includeTaped,
+      }),
     });
 
     const data = await res.json();
@@ -214,6 +241,8 @@ async function createPlaylist() {
   }
 }
 
+// ── Result display ─────────────────────────────────────────────────────────────
+
 function showResult(data) {
   document.getElementById("artists-card").classList.add("hidden");
 
@@ -228,7 +257,8 @@ function showResult(data) {
     const item = document.createElement("div");
     item.className = "summary-item";
     const statusClass = a.status === "ok" ? "status-ok" : "status-warn";
-    const statusText = a.status === "ok" ? `${a.tracks} tracks` : "No setlist found";
+    const statusText =
+      a.status === "ok" ? `${a.tracks} tracks` : "No setlist found";
     item.innerHTML = `
       <span>${escapeHtml(a.name)}</span>
       <span class="${statusClass}">${statusText}</span>
@@ -252,8 +282,10 @@ function resetResult() {
   document.getElementById("player-wrap").innerHTML = "";
 }
 
+// ── Utils ──────────────────────────────────────────────────────────────────────
+
 function escapeHtml(str) {
-  return str
+  return String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
