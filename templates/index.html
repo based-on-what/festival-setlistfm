@@ -10,16 +10,9 @@
   <div class="app">
     <header class="header">
       <h1 class="logo">🎪 Festival Setlist Creator</h1>
-      <div id="auth-area">
-        <a href="/login" class="btn btn-primary" id="login-btn">Connect Spotify</a>
-        <div id="logout-area" class="hidden">
-          <span class="user-status">Connected</span>
-          <a href="/logout" class="btn btn-ghost">Disconnect</a>
-        </div>
-      </div>
     </header>
 
-    <main id="main-content" class="hidden">
+    <main id="main-content">
       <section class="card">
         <h2 class="card-title">Search Artists</h2>
         <div class="search-box">
@@ -58,10 +51,7 @@
       </section>
     </main>
 
-    <div id="auth-notice" class="card center-card">
-      <p class="muted">Connect your Spotify account to get started.</p>
-      <a href="/login" class="btn btn-primary">Connect Spotify</a>
-    </div>
+
   </div>
 
   <script src="/static/app.js"></script>

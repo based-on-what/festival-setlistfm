@@ -4,21 +4,20 @@ Build a Spotify playlist from the most recent setlists of your favorite festival
 
 ## How It Works
 
-1. Authenticate with Spotify.
-2. Search for artists and add them to your list.
-3. Click **Create Festival Setlist** — the app fetches each artist's most recent setlist from setlist.fm, matches the songs on Spotify, and creates a private playlist in your account.
+1. Search for artists and add them to your list.
+2. Click **Create Festival Setlist** — the app fetches each artist's most recent setlist from setlist.fm, matches the songs on Spotify, and creates a private playlist in your account.
 
 ---
 
 ## Environment Variables
 
 | Variable | Description |
-|---|---|
+| --- | --- |
 | `SPOTIFY_CLIENT_ID` | Your Spotify app client ID |
 | `SPOTIFY_CLIENT_SECRET` | Your Spotify app client secret |
-| `SPOTIFY_REDIRECT_URI` | OAuth callback URL (e.g. `http://localhost:3000/callback`) |
+| `SPOTIFY_REDIRECT_URI` | OAuth callback URL used during one-time setup (e.g. `http://localhost:3000/callback`) |
+| `SPOTIFY_REFRESH_TOKEN` | Long-lived token obtained via `/setup` — allows the app to operate without user login |
 | `SETLISTFM_API_KEY` | Your setlist.fm API key |
-| `SECRET_KEY` | Random string used for Flask session signing |
 
 ---
 
@@ -51,10 +50,12 @@ python app.py
 1. Push this repository to GitHub.
 2. Go to [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo**.
 3. Select the repository.
-4. In **Variables**, add all five env vars from the table above.
+4. In **Variables**, add the env vars from the table above (except `SPOTIFY_REFRESH_TOKEN` — you'll get it next).
    - Set `SPOTIFY_REDIRECT_URI` to `https://<your-railway-domain>/callback`
-5. Railway auto-detects the `Procfile` and deploys.
-6. Once live, update your Spotify app's **Redirect URI** to match the Railway URL.
+5. Update your Spotify app's **Redirect URIs** to include that Railway URL.
+6. Railway auto-detects the `Procfile` and deploys.
+7. Visit `https://<your-railway-domain>/setup` once to authorize the app with Spotify. Copy the `SPOTIFY_REFRESH_TOKEN` shown on screen and add it to your Railway variables.
+8. Redeploy (or restart the service) — the app is now fully operational with no login required.
 
 ---
 
