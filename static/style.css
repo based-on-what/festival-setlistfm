@@ -179,6 +179,27 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 10px 14px;
+  cursor: grab;
+  transition: opacity 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.artist-item.dragging {
+  opacity: 0.35;
+  cursor: grabbing;
+}
+
+.artist-item.drag-over {
+  border-color: var(--accent);
+  background: var(--surface3);
+}
+
+.drag-handle {
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: grab;
+  flex-shrink: 0;
+  line-height: 1;
+  user-select: none;
 }
 
 .artist-item-thumb {

@@ -1,5 +1,6 @@
 const selectedArtists = [];
 let searchTimeout = null;
+let dragSrcIndex = null;
 
 (function initTheme() {
   const saved = localStorage.getItem("festival-theme") || "dark";
@@ -124,17 +125,51 @@ function renderArtistList() {
   empty.classList.add("hidden");
   createBtn.classList.remove("hidden");
 
-  selectedArtists.forEach((artist) => {
+  selectedArtists.forEach((artist, index) => {
     const li = document.createElement("li");
     li.className = "artist-item";
+    li.draggable = true;
     const thumb = artist.image
       ? `<img class="artist-item-thumb" src="${artist.image}" alt="" loading="lazy" />`
       : `<div class="artist-item-thumb-placeholder">🎤</div>`;
     li.innerHTML = `
+      <span class="drag-handle" title="Drag to reorder">⠿</span>
       ${thumb}
       <span class="artist-item-name">${escapeHtml(artist.name)}</span>
       <button class="remove-btn" title="Remove" onclick="removeArtist('${artist.id}')">✕</button>
     `;
+
+    li.addEventListener("dragstart", (e) => {
+      dragSrcIndex = index;
+      e.dataTransfer.effectAllowed = "move";
+      setTimeout(() => li.classList.add("dragging"), 0);
+    });
+
+    li.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      li.classList.add("drag-over");
+    });
+
+    li.addEventListener("dragleave", () => li.classList.remove("drag-over"));
+
+    li.addEventListener("drop", (e) => {
+      e.preventDefault();
+      li.classList.remove("drag-over");
+      if (dragSrcIndex === null || dragSrcIndex === index) return;
+      const [moved] = selectedArtists.splice(dragSrcIndex, 1);
+      selectedArtists.splice(index, 0, moved);
+      dragSrcIndex = null;
+      renderArtistList();
+    });
+
+    li.addEventListener("dragend", () => {
+      dragSrcIndex = null;
+      document.querySelectorAll(".artist-item").forEach((el) => {
+        el.classList.remove("dragging", "drag-over");
+      });
+    });
+
     list.appendChild(li);
   });
 }
