@@ -337,3 +337,12 @@ function escapeHtml(str) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
+// Activar el soporte para arrastrar en móviles
+MobileDragDrop.polyfill({
+    // Opcional: permite que el arrastre empiece inmediatamente al tocar
+    dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride
+});
+
+// Esto ayuda a que el scroll de la página no interfiera con el arrastre
+window.addEventListener('touchmove', function() {}, {passive: false});
