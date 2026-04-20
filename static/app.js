@@ -1,6 +1,7 @@
 const selectedArtists = [];
 let searchTimeout = null;
 let dragSrcIndex = null;
+let swapSrcIndex = null; // ── nuevo: para swap táctil
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -25,7 +26,6 @@ function todayFormatted() {
   });
 })();
 
-// Set placeholder with today's date once DOM is ready
 document.getElementById("playlist-name-input").placeholder =
   `Festival Setlist – ${todayFormatted()}`;
 
@@ -133,6 +133,25 @@ function removeArtist(id) {
   renderArtistList();
 }
 
+function handleSwapTap(index) {
+  if (swapSrcIndex === null) {
+    // Primera pulsación: seleccionar
+    swapSrcIndex = index;
+    renderArtistList();
+  } else if (swapSrcIndex === index) {
+    // Misma barritas: deseleccionar
+    swapSrcIndex = null;
+    renderArtistList();
+  } else {
+    // Segunda pulsación en otro artista: hacer swap
+    const tmp = selectedArtists[swapSrcIndex];
+    selectedArtists[swapSrcIndex] = selectedArtists[index];
+    selectedArtists[index] = tmp;
+    swapSrcIndex = null;
+    renderArtistList();
+  }
+}
+
 function renderArtistList() {
   const list = document.getElementById("artist-list");
   const empty = document.getElementById("empty-list-msg");
@@ -156,10 +175,11 @@ function renderArtistList() {
     li.className = "artist-item";
     li.draggable = true;
 
+    const isSwapSelected = swapSrcIndex === index;
     const thumb = `<div class="artist-item-thumb-placeholder">🎤</div>`;
 
     li.innerHTML = `
-      <span class="drag-handle" title="Drag to reorder">⠿</span>
+      <span class="drag-handle${isSwapSelected ? " swap-selected" : ""}" title="Drag to reorder">⠿</span>
       ${thumb}
       <span class="artist-item-name">${escapeHtml(artist.name)}</span>
       <button class="remove-btn" title="Remove" onclick="removeArtist('${escapeHtml(
@@ -167,6 +187,14 @@ function renderArtistList() {
       )}')">✕</button>
     `;
 
+    // ── Swap táctil: tap en el handle ──
+    const handle = li.querySelector(".drag-handle");
+    handle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handleSwapTap(index);
+    });
+
+    // ── Drag & drop (escritorio) ──
     li.addEventListener("dragstart", (e) => {
       dragSrcIndex = index;
       e.dataTransfer.effectAllowed = "move";
@@ -319,6 +347,7 @@ function showResult(data) {
 
 function resetResult() {
   selectedArtists.length = 0;
+  swapSrcIndex = null;
   document.getElementById("playlist-name-input").value = "";
   renderArtistList();
   document.getElementById("result-card").classList.add("hidden");
@@ -337,12 +366,3 @@ function escapeHtml(str) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
-
-// Activar el soporte para arrastrar en móviles
-MobileDragDrop.polyfill({
-    // Opcional: permite que el arrastre empiece inmediatamente al tocar
-    dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride
-});
-
-// Esto ayuda a que el scroll de la página no interfiera con el arrastre
-window.addEventListener('touchmove', function() {}, {passive: false});
