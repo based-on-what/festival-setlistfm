@@ -54,6 +54,18 @@
               <span class="option-hint">Include songs played from a recording (not performed live), whether by the artist or not.</span>
             </span>
           </label>
+
+          <!-- ── Playlist name ── -->
+          <div class="playlist-name-group">
+            <label class="playlist-name-label" for="playlist-name-input">Playlist name <span class="option-hint">(optional)</span></label>
+            <input
+              type="text"
+              id="playlist-name-input"
+              class="input"
+              autocomplete="off"
+              maxlength="100"
+            />
+          </div>
         </div>
 
         <button id="create-btn" class="btn btn-primary btn-full hidden" onclick="createPlaylist()">

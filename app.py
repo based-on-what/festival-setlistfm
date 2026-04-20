@@ -102,8 +102,6 @@ def _extract_songs(setlist, include_taped):
                 continue
             cover_info = song.get("cover")
             cover_artist = cover_info.get("name") if cover_info else None
-            # A song is a medley candidate if its name contains " / "
-            # (space-slash-space is the official setlist.fm medley format)
             is_medley_candidate = " / " in name
             songs.append({
                 "name": name,
@@ -212,13 +210,13 @@ def _resolve_track(hdrs, performing_artist, song, prefer_original):
                 results.append(t)
         return results
 
-    # ── Step 3: canción normal sin cover → no hay más fallbacks ──────────────
-    # (sin _search_spotify_track_any_artist para evitar falsos positivos)
+    # ── Step 3: canción normal → sin fallback permisivo ───────────────────────
     return []
+
 
 def _find_tracks_parallel(hdrs, performing_artist, songs, prefer_original):
     """Resolve all songs for one artist in parallel, tracking missing ones."""
-    results = []  # list of (song_name, [track_ids])
+    results = []
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = {
             executor.submit(_resolve_track, hdrs, performing_artist, song, prefer_original): song
@@ -278,6 +276,10 @@ def create_playlist():
     prefer_original = bool(body.get("prefer_original", True))
     include_taped = bool(body.get("include_taped", False))
 
+    # Playlist name: use provided value or fall back to default
+    today = date.today().strftime("%d/%m/%Y")
+    playlist_name = body.get("playlist_name", "").strip() or f"Festival Setlist – {today}"
+
     try:
         hdrs = spotify_headers()
         all_track_ids, artist_results = _collect_tracks(
@@ -294,12 +296,11 @@ def create_playlist():
         return jsonify({"error": "could_not_get_user"}), 502
     user_id = me.json()["id"]
 
-    today = date.today().strftime("%Y-%m-%d")
     pl = requests.post(
         f"{SPOTIFY_API_BASE}/users/{user_id}/playlists",
         headers={**hdrs, "Content-Type": "application/json"},
         json={
-            "name": f"Festival Setlist – {today}",
+            "name": playlist_name,
             "public": False,
             "description": "Created by Festival SetlistFM Creator, an open source project in GitHub: https://github.com/based-on-what/festival-setlistfm",
         },

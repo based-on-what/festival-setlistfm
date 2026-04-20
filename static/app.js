@@ -2,6 +2,16 @@ const selectedArtists = [];
 let searchTimeout = null;
 let dragSrcIndex = null;
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function todayFormatted() {
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
 (function initTheme() {
   const saved = localStorage.getItem("festival-theme") || "dark";
   document.documentElement.setAttribute("data-theme", saved);
@@ -14,6 +24,10 @@ let dragSrcIndex = null;
     localStorage.setItem("festival-theme", next);
   });
 })();
+
+// Set placeholder with today's date once DOM is ready
+document.getElementById("playlist-name-input").placeholder =
+  `Festival Setlist – ${todayFormatted()}`;
 
 function showError(id, msg) {
   const el = document.getElementById(id);
@@ -198,6 +212,7 @@ async function createPlaylist() {
 
   const preferOriginal = document.getElementById("opt-prefer-original").checked;
   const includeTaped = document.getElementById("opt-include-taped").checked;
+  const playlistName = document.getElementById("playlist-name-input").value.trim();
 
   btn.disabled = true;
   label.textContent = "Building playlist…";
@@ -211,6 +226,7 @@ async function createPlaylist() {
         artists: selectedArtists,
         prefer_original: preferOriginal,
         include_taped: includeTaped,
+        playlist_name: playlistName,
       }),
     });
 
@@ -258,7 +274,6 @@ function showResult(data) {
   if (warnings.length) {
     const rows = warnings
       .map((a) => {
-        // Show ALL missing tracks — no truncation
         const songList = a.missing
           .map((s) => `"${escapeHtml(s)}"`)
           .join(", ");
@@ -304,6 +319,7 @@ function showResult(data) {
 
 function resetResult() {
   selectedArtists.length = 0;
+  document.getElementById("playlist-name-input").value = "";
   renderArtistList();
   document.getElementById("result-card").classList.add("hidden");
   document.getElementById("artists-card").classList.remove("hidden");
