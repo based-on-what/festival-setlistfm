@@ -102,11 +102,13 @@ def _extract_songs(setlist, include_taped):
                 continue
             cover_info = song.get("cover")
             cover_artist = cover_info.get("name") if cover_info else None
-            is_medley = bool(song.get("medley", False))
+            # A song is a medley candidate if its name contains " / "
+            # (space-slash-space is the official setlist.fm medley format)
+            is_medley_candidate = " / " in name
             songs.append({
                 "name": name,
                 "cover_artist": cover_artist,
-                "is_medley": is_medley,
+                "is_medley_candidate": is_medley_candidate,
                 "is_tape": is_tape,
             })
     return songs
@@ -147,7 +149,11 @@ def _search_spotify_track(hdrs, artist_name, track_name):
     r = requests.get(
         f"{SPOTIFY_API_BASE}/search",
         headers=hdrs,
-        params={"q": f'artist:"{artist_name}" track:"{track_name}"', "type": "track", "limit": 1},
+        params={
+            "q": f'artist:"{artist_name}" track:"{track_name}"',
+            "type": "track",
+            "limit": 1,
+        },
     )
     if r.ok:
         items = r.json().get("tracks", {}).get("items", [])
@@ -170,39 +176,61 @@ def _search_spotify_track_any_artist(hdrs, track_name):
 
 
 def _resolve_track(hdrs, performing_artist, song, prefer_original):
+    """
+    Returns a list of Spotify track IDs (usually one, but multiple for medleys).
+    Returns an empty list if nothing is found.
+
+    Strategy:
+    1. Search the full song name on Spotify first (handles titles like "Refuse / Resist").
+    2. Only if not found AND the name contains " / ", treat it as a medley and
+       search each segment individually.
+    3. Normal fallback logic for non-medley songs.
+    """
     name = song["name"]
     cover_artist = song["cover_artist"]
-    is_medley = song["is_medley"]
+    is_medley_candidate = song["is_medley_candidate"]
 
-    if is_medley:
-        original_artist = cover_artist or performing_artist
-        tid = _search_spotify_track(hdrs, original_artist, name)
+    # ── Step 1: search the full name as-is ────────────────────────────────────
+    if prefer_original and cover_artist:
+        tid = _search_spotify_track(hdrs, cover_artist, name)
         if not tid:
-            tid = _search_spotify_track_any_artist(hdrs, name)
-        return tid
-
-    if prefer_original:
-        if cover_artist:
-            tid = _search_spotify_track(hdrs, cover_artist, name)
-            if tid:
-                return tid
-            return _search_spotify_track(hdrs, performing_artist, name)
-        else:
-            return _search_spotify_track(hdrs, performing_artist, name)
+            tid = _search_spotify_track(hdrs, performing_artist, name)
     else:
         tid = _search_spotify_track(hdrs, performing_artist, name)
-        if tid:
-            return tid
-        if cover_artist:
+        if not tid and cover_artist:
             tid = _search_spotify_track(hdrs, cover_artist, name)
-        if not tid:
-            tid = _search_spotify_track_any_artist(hdrs, name)
-        return tid
+
+    if tid:
+        return [tid]  # found as a full title — not a real medley
+
+    # ── Step 2: if " / " in name and full search failed → treat as medley ─────
+    if is_medley_candidate:
+        parts = [p.strip() for p in name.split(" / ") if p.strip()]
+        results = []
+        for part in parts:
+            # cover_artist applies to the whole medley line (setlist.fm limitation)
+            if prefer_original and cover_artist:
+                t = _search_spotify_track(hdrs, cover_artist, part)
+                if not t:
+                    t = _search_spotify_track(hdrs, performing_artist, part)
+            else:
+                t = _search_spotify_track(hdrs, performing_artist, part)
+                if not t and cover_artist:
+                    t = _search_spotify_track(hdrs, cover_artist, part)
+            if not t:
+                t = _search_spotify_track_any_artist(hdrs, part)
+            if t:
+                results.append(t)
+        return results  # may be empty if nothing found
+
+    # ── Step 3: last-resort fallback for normal songs ─────────────────────────
+    tid = _search_spotify_track_any_artist(hdrs, name)
+    return [tid] if tid else []
 
 
 def _find_tracks_parallel(hdrs, performing_artist, songs, prefer_original):
     """Resolve all songs for one artist in parallel, tracking missing ones."""
-    results = []  # list of (song_name, track_id_or_None)
+    results = []  # list of (song_name, [track_ids])
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = {
             executor.submit(_resolve_track, hdrs, performing_artist, song, prefer_original): song
@@ -210,12 +238,18 @@ def _find_tracks_parallel(hdrs, performing_artist, songs, prefer_original):
         }
         for future in as_completed(futures):
             song = futures[future]
-            tid = future.result()
-            results.append((song["name"], tid))
+            track_ids = future.result()
+            results.append((song["name"], track_ids))
 
-    track_ids = [tid for _, tid in results if tid]
-    missing = [name for name, tid in results if not tid]
-    return track_ids, missing
+    all_ids = []
+    missing = []
+    for song_name, track_ids in results:
+        if track_ids:
+            all_ids.extend(track_ids)
+        else:
+            missing.append(song_name)
+
+    return all_ids, missing
 
 
 def _collect_tracks(artists, hdrs, prefer_original, include_taped):
@@ -226,7 +260,12 @@ def _collect_tracks(artists, hdrs, prefer_original, include_taped):
         mbid = artist.get("mbid")
         songs = _get_recent_setlist(mbid, name, include_taped)
         if not songs:
-            artist_results.append({"name": name, "status": "no_setlist", "tracks": 0, "missing": []})
+            artist_results.append({
+                "name": name,
+                "status": "no_setlist",
+                "tracks": 0,
+                "missing": [],
+            })
             continue
         track_ids, missing = _find_tracks_parallel(hdrs, name, songs, prefer_original)
         all_track_ids.extend(track_ids)

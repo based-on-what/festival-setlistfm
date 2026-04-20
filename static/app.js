@@ -54,7 +54,7 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// ── Search (now powered by setlist.fm) ────────────────────────────────────────
+// ── Search (powered by setlist.fm) ────────────────────────────────────────────
 
 async function searchArtists(q) {
   clearError("search-error");
@@ -85,7 +85,6 @@ function renderDropdown(artists) {
     item.className = "dropdown-item";
 
     const thumb = `<div class="dropdown-thumb-placeholder">🎤</div>`;
-
     const sub = artist.disambiguation
       ? `<span class="dropdown-meta">${escapeHtml(artist.disambiguation)}</span>`
       : "";
@@ -259,14 +258,13 @@ function showResult(data) {
   if (warnings.length) {
     const rows = warnings
       .map((a) => {
-        const MAX = 5;
-        const shown = a.missing.slice(0, MAX);
-        const extra = a.missing.length - MAX;
-        const songList = shown.map((s) => `"${escapeHtml(s)}"`).join(", ");
-        const suffix = extra > 0 ? ` <em>+${extra} more</em>` : "";
+        // Show ALL missing tracks — no truncation
+        const songList = a.missing
+          .map((s) => `"${escapeHtml(s)}"`)
+          .join(", ");
         return `<div class="warning-row">
           <span class="warning-artist">🎤 ${escapeHtml(a.name)}</span>
-          <span class="warning-songs">${songList}${suffix}</span>
+          <span class="warning-songs">${songList}</span>
         </div>`;
       })
       .join("");
