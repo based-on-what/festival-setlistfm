@@ -2,7 +2,7 @@ import os
 import time
 import requests
 from datetime import date
-from functools import lru_cache
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
 
@@ -77,13 +77,13 @@ def search_artist():
     artists = []
     for a in items[:8]:
         artists.append({
-            "id": a.get("mbid", a.get("name")),   # use mbid as unique id
+            "id": a.get("mbid", a.get("name")),
             "mbid": a.get("mbid"),
             "name": a.get("name", ""),
             "sortName": a.get("sortName", ""),
             "disambiguation": a.get("disambiguation", ""),
             "url": a.get("url", ""),
-            "image": None,                          # setlist.fm doesn't provide images
+            "image": None,
         })
     return jsonify({"artists": artists})
 
@@ -91,11 +91,6 @@ def search_artist():
 # ── Setlist helpers ────────────────────────────────────────────────────────────
 
 def _extract_songs(setlist, include_taped):
-    """
-    Returns a list of dicts:
-      { name, cover_artist, is_medley, is_tape }
-    cover_artist is None when the song belongs to the performing artist.
-    """
     songs = []
     for sset in setlist.get("sets", {}).get("set", []):
         for song in sset.get("song", []):
@@ -105,12 +100,12 @@ def _extract_songs(setlist, include_taped):
             is_tape = bool(song.get("tape", False))
             if is_tape and not include_taped:
                 continue
-            cover_info = song.get("cover")          # {"mbid":…, "name":…} or None
+            cover_info = song.get("cover")
             cover_artist = cover_info.get("name") if cover_info else None
             is_medley = bool(song.get("medley", False))
             songs.append({
                 "name": name,
-                "cover_artist": cover_artist,       # None → original artist's song
+                "cover_artist": cover_artist,
                 "is_medley": is_medley,
                 "is_tape": is_tape,
             })
@@ -118,7 +113,6 @@ def _extract_songs(setlist, include_taped):
 
 
 def _get_recent_setlist(mbid, artist_name, include_taped):
-    """Fetch the most recent setlist with ≥3 songs for the given artist."""
     if not SETLISTFM_API_KEY:
         raise RuntimeError("SETLISTFM_API_KEY not configured.")
     headers = {"x-api-key": SETLISTFM_API_KEY, "Accept": "application/json"}
@@ -150,7 +144,6 @@ def _get_recent_setlist(mbid, artist_name, include_taped):
 # ── Spotify track resolution ───────────────────────────────────────────────────
 
 def _search_spotify_track(hdrs, artist_name, track_name):
-    """Search Spotify for a specific artist + track. Returns track_id or None."""
     r = requests.get(
         f"{SPOTIFY_API_BASE}/search",
         headers=hdrs,
@@ -164,7 +157,6 @@ def _search_spotify_track(hdrs, artist_name, track_name):
 
 
 def _search_spotify_track_any_artist(hdrs, track_name):
-    """Search Spotify for a track without restricting artist (for originals). Returns track_id or None."""
     r = requests.get(
         f"{SPOTIFY_API_BASE}/search",
         headers=hdrs,
@@ -178,24 +170,11 @@ def _search_spotify_track_any_artist(hdrs, track_name):
 
 
 def _resolve_track(hdrs, performing_artist, song, prefer_original):
-    """
-    Resolve a single song dict to a Spotify track ID.
-
-    Logic:
-    - Medley songs: always search by original artist (cover_artist if set, else performing_artist)
-    - prefer_original=True:
-        * If song has a cover_artist → search original artist first, fallback to performing_artist cover
-        * If no cover_artist → search performing_artist
-    - prefer_original=False:
-        * Always search performing_artist (the cover version)
-        * If not found, fallback to original artist (cover_artist) or any artist
-    """
     name = song["name"]
-    cover_artist = song["cover_artist"]   # None if it's the artist's own song
+    cover_artist = song["cover_artist"]
     is_medley = song["is_medley"]
 
     if is_medley:
-        # For medleys, prefer the original recording
         original_artist = cover_artist or performing_artist
         tid = _search_spotify_track(hdrs, original_artist, name)
         if not tid:
@@ -204,26 +183,36 @@ def _resolve_track(hdrs, performing_artist, song, prefer_original):
 
     if prefer_original:
         if cover_artist:
-            # It's a cover → try original artist first
             tid = _search_spotify_track(hdrs, cover_artist, name)
             if tid:
                 return tid
-            # Fallback: the performing artist's cover
             return _search_spotify_track(hdrs, performing_artist, name)
         else:
-            # Own song → search by performing artist
             return _search_spotify_track(hdrs, performing_artist, name)
     else:
-        # prefer_original=False → want the cover (performing artist's version)
         tid = _search_spotify_track(hdrs, performing_artist, name)
         if tid:
             return tid
-        # Fallback: original artist or any
         if cover_artist:
             tid = _search_spotify_track(hdrs, cover_artist, name)
         if not tid:
             tid = _search_spotify_track_any_artist(hdrs, name)
         return tid
+
+
+def _find_tracks_parallel(hdrs, performing_artist, songs, prefer_original):
+    """Resolve all songs for one artist in parallel to avoid request timeouts."""
+    track_ids = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {
+            executor.submit(_resolve_track, hdrs, performing_artist, song, prefer_original): song
+            for song in songs
+        }
+        for future in as_completed(futures):
+            tid = future.result()
+            if tid:
+                track_ids.append(tid)
+    return track_ids
 
 
 def _collect_tracks(artists, hdrs, prefer_original, include_taped):
@@ -236,11 +225,7 @@ def _collect_tracks(artists, hdrs, prefer_original, include_taped):
         if not songs:
             artist_results.append({"name": name, "status": "no_setlist", "tracks": 0})
             continue
-        track_ids = []
-        for song in songs:
-            tid = _resolve_track(hdrs, name, song, prefer_original)
-            if tid:
-                track_ids.append(tid)
+        track_ids = _find_tracks_parallel(hdrs, name, songs, prefer_original)
         all_track_ids.extend(track_ids)
         artist_results.append({"name": name, "status": "ok", "tracks": len(track_ids)})
     return all_track_ids, artist_results
