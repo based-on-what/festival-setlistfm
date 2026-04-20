@@ -129,9 +129,24 @@ body {
   flex-shrink: 0;
 }
 
+.dropdown-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .dropdown-name {
   font-size: 0.875rem;
   font-weight: 700;
+}
+
+.dropdown-meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Artist list */
@@ -260,10 +275,17 @@ body {
   position: absolute;
   right: 12px;
   top: 50%;
-  transform: translateY(-50%);
+  animation: spin-centered 0.7s linear infinite;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes spin-centered {
+  from { transform: translateY(-50%) rotate(0deg); }
+  to   { transform: translateY(-50%) rotate(360deg); }
+}
 
 /* Messages */
 .error {

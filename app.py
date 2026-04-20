@@ -2,6 +2,7 @@ import os
 import time
 import requests
 from datetime import date
+from functools import lru_cache
 from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
 
@@ -16,6 +17,8 @@ SETLISTFM_API_KEY = os.environ.get("SETLISTFM_API_KEY")
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_API_BASE = "https://api.spotify.com/v1"
 SETLISTFM_API_BASE = "https://api.setlist.fm/rest/1.0"
+MUSICBRAINZ_API = "https://musicbrainz.org/ws/2/artist/"
+MB_HEADERS = {"User-Agent": "FestivalSetlistCreator/1.0 (festival-setlistfm.up.railway.app)"}
 
 _access_token = None
 _token_expiry = 0
@@ -44,6 +47,37 @@ def spotify_headers():
     return {"Authorization": f"Bearer {get_access_token()}"}
 
 
+@lru_cache(maxsize=512)
+def _lookup_artist_metadata(artist_name):
+    try:
+        resp = requests.get(
+            MUSICBRAINZ_API,
+            headers=MB_HEADERS,
+            params={"query": f'artist:"{artist_name}"', "fmt": "json", "limit": 5},
+            timeout=1.8,
+        )
+        if not resp.ok:
+            return None, [], None
+        candidates = resp.json().get("artists", [])
+        if not candidates:
+            return None, [], None
+        match = next(
+            (a for a in candidates if a.get("name", "").lower() == artist_name.lower()),
+            candidates[0],
+        )
+        mbid = match.get("id")
+        country = (
+            (match.get("area") or {}).get("name")
+            or (match.get("begin-area") or {}).get("name")
+            or match.get("country")
+        )
+        tags = match.get("genres") or match.get("tags") or []
+        genres = [t["name"] for t in sorted(tags, key=lambda x: x.get("count", 0), reverse=True)][:3]
+        return country, genres, mbid
+    except Exception:
+        return None, [], None
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -66,40 +100,86 @@ def search_artist():
     except requests.HTTPError:
         return jsonify({"error": "spotify_error"}), 502
     items = resp.json().get("artists", {}).get("items", [])
-    artists = [
-        {
+    artists = []
+    for a in items:
+        country, mb_genres, mbid = _lookup_artist_metadata(a["name"])
+        genres = mb_genres or a.get("genres", [])[:3]
+        artists.append({
             "id": a["id"],
             "name": a["name"],
             "image": a["images"][-1]["url"] if a.get("images") else None,
-        }
-        for a in items
-    ]
+            "genres": genres,
+            "country": country,
+            "mbid": mbid,
+        })
     return jsonify({"artists": artists})
 
 
-def _get_recent_setlist(artist_name):
+def _extract_songs(setlist):
+    return [
+        song.get("name", "").strip()
+        for sset in setlist.get("sets", {}).get("set", [])
+        for song in sset.get("song", [])
+        if song.get("name", "").strip() and not song.get("tape", False)
+    ]
+
+
+def _get_recent_setlist(artist_name, mbid=None):
+    if not SETLISTFM_API_KEY:
+        raise RuntimeError("SETLISTFM_API_KEY not configured.")
     headers = {"x-api-key": SETLISTFM_API_KEY, "Accept": "application/json"}
+
+    if mbid:
+        url = f"{SETLISTFM_API_BASE}/artist/{mbid}/setlists"
+    else:
+        url = f"{SETLISTFM_API_BASE}/search/setlists"
+
     for page in range(1, 6):
-        resp = requests.get(
-            f"{SETLISTFM_API_BASE}/search/setlists",
-            headers=headers,
-            params={"artistName": artist_name, "p": page},
-        )
+        params = {"p": page} if mbid else {"artistName": artist_name, "p": page}
+        resp = requests.get(url, headers=headers, params=params)
+        if resp.status_code in (401, 403):
+            raise RuntimeError("SETLISTFM_API_KEY is invalid or unauthorized.")
         if not resp.ok:
             return None
         setlists = resp.json().get("setlist", [])
         if not setlists:
             return None
         for setlist in setlists:
-            songs = [
-                song.get("name", "").strip()
-                for sset in setlist.get("sets", {}).get("set", [])
-                for song in sset.get("song", [])
-                if song.get("name", "").strip()
-            ]
+            songs = _extract_songs(setlist)
             if len(songs) >= 3:
                 return songs
     return None
+
+
+def _find_track_ids(artist_name, songs, hdrs):
+    track_ids = []
+    for song in songs:
+        r = requests.get(
+            f"{SPOTIFY_API_BASE}/search",
+            headers=hdrs,
+            params={"q": f"artist:{artist_name} track:{song}", "type": "track", "limit": 1},
+        )
+        if r.ok:
+            items = r.json().get("tracks", {}).get("items", [])
+            if items:
+                track_ids.append(items[0]["id"])
+    return track_ids
+
+
+def _collect_tracks(artists, hdrs):
+    all_track_ids = []
+    artist_results = []
+    for artist in artists:
+        name = artist.get("name", "")
+        mbid = artist.get("mbid")
+        songs = _get_recent_setlist(name, mbid=mbid)
+        if not songs:
+            artist_results.append({"name": name, "status": "no_setlist", "tracks": 0})
+            continue
+        track_ids = _find_track_ids(name, songs, hdrs)
+        all_track_ids.extend(track_ids)
+        artist_results.append({"name": name, "status": "ok", "tracks": len(track_ids)})
+    return all_track_ids, artist_results
 
 
 @app.route("/api/create-playlist", methods=["POST"])
@@ -111,33 +191,9 @@ def create_playlist():
 
     try:
         hdrs = spotify_headers()
+        all_track_ids, artist_results = _collect_tracks(artists, hdrs)
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 503
-
-    all_track_ids = []
-    artist_results = []
-
-    for artist in artists:
-        name = artist.get("name", "")
-        songs = _get_recent_setlist(name)
-        if not songs:
-            artist_results.append({"name": name, "status": "no_setlist", "tracks": 0})
-            continue
-
-        track_ids = []
-        for song in songs:
-            r = requests.get(
-                f"{SPOTIFY_API_BASE}/search",
-                headers=hdrs,
-                params={"q": f"artist:{name} track:{song}", "type": "track", "limit": 1},
-            )
-            if r.ok:
-                items = r.json().get("tracks", {}).get("items", [])
-                if items:
-                    track_ids.append(items[0]["id"])
-
-        all_track_ids.extend(track_ids)
-        artist_results.append({"name": name, "status": "ok", "tracks": len(track_ids)})
 
     if not all_track_ids:
         return jsonify({"error": "no_tracks_found", "details": artist_results}), 400

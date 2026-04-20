@@ -67,7 +67,13 @@ function renderDropdown(artists) {
     const thumb = artist.image
       ? `<img class="dropdown-thumb" src="${artist.image}" alt="" loading="lazy" />`
       : `<div class="dropdown-thumb-placeholder">🎤</div>`;
-    item.innerHTML = `${thumb}<span class="dropdown-name">${escapeHtml(artist.name)}</span>`;
+    const metaParts = [];
+    if (artist.genres?.length) metaParts.push(artist.genres.join(", "));
+    if (artist.country) metaParts.push(artist.country);
+    const meta = metaParts.length
+      ? `<span class="dropdown-meta">${escapeHtml(metaParts.join(" · "))}</span>`
+      : "";
+    item.innerHTML = `${thumb}<div class="dropdown-info"><span class="dropdown-name">${escapeHtml(artist.name)}</span>${meta}</div>`;
     item.addEventListener("click", () => addArtist(artist));
     container.appendChild(item);
   });
