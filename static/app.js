@@ -1,6 +1,16 @@
 const selectedArtists = [];
 let searchTimeout = null;
 
+(function initTheme() {
+  const saved = localStorage.getItem("festival-theme") || "dark";
+  document.documentElement.setAttribute("data-theme", saved);
+  document.getElementById("theme-toggle").addEventListener("click", () => {
+    const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("festival-theme", next);
+  });
+})();
+
 function showError(id, msg) {
   const el = document.getElementById(id);
   el.textContent = msg;
