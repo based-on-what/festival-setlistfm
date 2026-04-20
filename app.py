@@ -58,6 +58,25 @@ def index():
 
 @app.route("/setup")
 def setup():
+    missing = [v for v, val in [
+        ("SPOTIFY_CLIENT_ID", SPOTIFY_CLIENT_ID),
+        ("SPOTIFY_CLIENT_SECRET", SPOTIFY_CLIENT_SECRET),
+        ("SPOTIFY_REDIRECT_URI", SPOTIFY_REDIRECT_URI),
+    ] if not val]
+    if missing:
+        return f"""<!DOCTYPE html>
+<html><head><title>Setup Error</title>
+<style>
+  body{{background:#0a0a0a;color:#e0e0e0;font-family:monospace;padding:48px;max-width:600px;margin:auto}}
+  h2{{color:#ff4d4d;margin-bottom:16px}}
+  code{{background:#161616;padding:2px 8px;border-radius:4px;color:#39ff14}}
+  ul{{margin-top:12px;line-height:2}}
+</style></head><body>
+<h2>Missing environment variables</h2>
+<p>The following variables are not set in your Railway environment:</p>
+<ul>{''.join(f'<li><code>{v}</code></li>' for v in missing)}</ul>
+<p>Add them in Railway → Variables, then redeploy.</p>
+</body></html>""", 500
     scope = "playlist-modify-private playlist-modify-public"
     params = {
         "client_id": SPOTIFY_CLIENT_ID,
