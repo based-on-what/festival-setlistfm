@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Festival Setlist Creator</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1 class="logo">🎪 Festival Setlist Creator</h1>
+      <div id="auth-area">
+        <a href="/login" class="btn btn-primary" id="login-btn">Connect Spotify</a>
+        <div id="logout-area" class="hidden">
+          <span class="user-status">Connected</span>
+          <a href="/logout" class="btn btn-ghost">Disconnect</a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main-content" class="hidden">
+      <section class="card">
+        <h2 class="card-title">Search Artists</h2>
+        <div class="search-box">
+          <input
+            type="text"
+            id="artist-input"
+            class="input"
+            placeholder="Artist name..."
+            autocomplete="off"
+          />
+          <div id="search-spinner" class="spinner hidden"></div>
+        </div>
+        <div id="search-results" class="dropdown hidden"></div>
+        <p id="search-error" class="error hidden"></p>
+      </section>
+
+      <section class="card" id="artists-card">
+        <h2 class="card-title">Your Festival Lineup</h2>
+        <p id="empty-list-msg" class="muted">No artists added yet.</p>
+        <ul id="artist-list" class="artist-list"></ul>
+        <button id="create-btn" class="btn btn-primary btn-full hidden" onclick="createPlaylist()">
+          <span id="create-label">Create Festival Setlist</span>
+          <span id="create-spinner" class="spinner hidden"></span>
+        </button>
+        <p id="create-error" class="error hidden"></p>
+      </section>
+
+      <section class="card hidden" id="result-card">
+        <h2 class="card-title">Your Playlist is Ready!</h2>
+        <div id="artist-summary" class="summary-list"></div>
+        <a id="playlist-link" href="#" target="_blank" class="btn btn-spotify">
+          Open in Spotify
+        </a>
+        <div id="player-wrap" class="player-wrap"></div>
+        <button class="btn btn-ghost btn-full" onclick="resetResult()">Create Another</button>
+      </section>
+    </main>
+
+    <div id="auth-notice" class="card center-card">
+      <p class="muted">Connect your Spotify account to get started.</p>
+      <a href="/login" class="btn btn-primary">Connect Spotify</a>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
