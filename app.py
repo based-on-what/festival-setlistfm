@@ -208,7 +208,7 @@ def create_playlist():
         f"{SPOTIFY_API_BASE}/users/{user_id}/playlists",
         headers={**hdrs, "Content-Type": "application/json"},
         json={"name": f"Festival Setlist – {today}", "public": False,
-              "description": "Created by Festival Setlist Creator"},
+              "description": "Created by Festival SetlistFM Creator, an open source project in GitHub: https://github.com/based-on-what/festival-setlistfm"},
     )
     if not pl.ok:
         return jsonify({"error": "playlist_creation_failed"}), 502
