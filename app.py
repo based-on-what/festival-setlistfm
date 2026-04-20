@@ -1,7 +1,8 @@
 import os
+import time
 import requests
 from datetime import date
-from flask import Flask, request, jsonify, render_template, redirect, session, url_for
+from flask import Flask, request, jsonify, render_template, redirect
 from dotenv import load_dotenv
 import urllib.parse
 import secrets
@@ -21,21 +22,49 @@ SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_API_BASE = "https://api.spotify.com/v1"
 SETLISTFM_API_BASE = "https://api.setlist.fm/rest/1.0"
 
+_access_token = None
+_token_expiry = 0
+
+
+def get_access_token():
+    global _access_token, _token_expiry
+    if _access_token and time.time() < _token_expiry - 60:
+        return _access_token
+    refresh_token = os.environ.get("SPOTIFY_REFRESH_TOKEN")
+    if not refresh_token:
+        raise RuntimeError("SPOTIFY_REFRESH_TOKEN not configured. Visit /setup first.")
+    resp = requests.post(
+        SPOTIFY_TOKEN_URL,
+        data={"grant_type": "refresh_token", "refresh_token": refresh_token},
+        auth=(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET),
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    _access_token = data["access_token"]
+    _token_expiry = time.time() + data.get("expires_in", 3600)
+    return _access_token
+
+
+def spotify_headers():
+    return {"Authorization": f"Bearer {get_access_token()}"}
+
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
 
-@app.route("/login")
-def login():
+# ── One-time setup routes (get the refresh token once, then store in .env) ──
+
+@app.route("/setup")
+def setup():
     scope = "playlist-modify-private playlist-modify-public"
     params = {
         "client_id": SPOTIFY_CLIENT_ID,
         "response_type": "code",
         "redirect_uri": SPOTIFY_REDIRECT_URI,
         "scope": scope,
-        "state": secrets.token_hex(8),
+        "show_dialog": "true",
     }
     return redirect(f"{SPOTIFY_AUTH_URL}?{urllib.parse.urlencode(params)}")
 
@@ -45,7 +74,7 @@ def callback():
     code = request.args.get("code")
     error = request.args.get("error")
     if error or not code:
-        return redirect("/?error=auth_failed")
+        return "<h3>Auth error — try /setup again.</h3>", 400
     resp = requests.post(
         SPOTIFY_TOKEN_URL,
         data={
@@ -56,65 +85,42 @@ def callback():
         auth=(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET),
     )
     if not resp.ok:
-        return redirect("/?error=token_failed")
+        return "<h3>Token exchange failed — check your credentials.</h3>", 400
     data = resp.json()
-    session["access_token"] = data["access_token"]
-    session["refresh_token"] = data.get("refresh_token")
-    return redirect("/")
+    rt = data.get("refresh_token", "")
+    return f"""<!DOCTYPE html>
+<html><head><title>Setup</title>
+<style>
+  body{{background:#0d0d0d;color:#f0f0f0;font-family:monospace;padding:48px;max-width:600px;margin:auto}}
+  pre{{background:#1a1a1a;border:1px solid #2e2e2e;padding:20px;border-radius:8px;word-break:break-all;white-space:pre-wrap}}
+  h2{{color:#1db954;margin-bottom:16px}}
+  p{{color:#888;margin-bottom:12px;line-height:1.5}}
+</style>
+</head><body>
+<h2>Setup complete ✓</h2>
+<p>Copy the line below into your <code>.env</code> file (or Railway environment variables), then restart the app.</p>
+<pre>SPOTIFY_REFRESH_TOKEN={rt}</pre>
+<p>After restarting, visit <a href="/" style="color:#1db954">the app</a>.</p>
+</body></html>"""
 
 
-@app.route("/api/auth-status")
-def auth_status():
-    return jsonify({"authenticated": "access_token" in session})
-
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect("/")
-
-
-def _refresh_token():
-    refresh_token = session.get("refresh_token")
-    if not refresh_token:
-        return False
-    resp = requests.post(
-        SPOTIFY_TOKEN_URL,
-        data={"grant_type": "refresh_token", "refresh_token": refresh_token},
-        auth=(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET),
-    )
-    if not resp.ok:
-        return False
-    session["access_token"] = resp.json()["access_token"]
-    return True
-
-
-def _spotify_headers():
-    return {"Authorization": f"Bearer {session['access_token']}"}
-
+# ── API routes ──
 
 @app.route("/api/search-artist")
 def search_artist():
-    if "access_token" not in session:
-        return jsonify({"error": "not_authenticated"}), 401
     q = request.args.get("q", "").strip()
     if not q:
         return jsonify({"artists": []})
-    resp = requests.get(
-        f"{SPOTIFY_API_BASE}/search",
-        headers=_spotify_headers(),
-        params={"q": q, "type": "artist", "limit": 8},
-    )
-    if resp.status_code == 401:
-        if _refresh_token():
-            resp = requests.get(
-                f"{SPOTIFY_API_BASE}/search",
-                headers=_spotify_headers(),
-                params={"q": q, "type": "artist", "limit": 8},
-            )
-        else:
-            return jsonify({"error": "auth_expired"}), 401
-    if not resp.ok:
+    try:
+        resp = requests.get(
+            f"{SPOTIFY_API_BASE}/search",
+            headers=spotify_headers(),
+            params={"q": q, "type": "artist", "limit": 8},
+        )
+        resp.raise_for_status()
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 503
+    except requests.HTTPError:
         return jsonify({"error": "spotify_error"}), 502
     items = resp.json().get("artists", {}).get("items", [])
     artists = [
@@ -129,12 +135,8 @@ def search_artist():
 
 
 def _get_recent_setlist(artist_name):
-    headers = {
-        "x-api-key": SETLISTFM_API_KEY,
-        "Accept": "application/json",
-    }
-    page = 1
-    while page <= 5:
+    headers = {"x-api-key": SETLISTFM_API_KEY, "Accept": "application/json"}
+    for page in range(1, 6):
         resp = requests.get(
             f"{SETLISTFM_API_BASE}/search/setlists",
             headers=headers,
@@ -142,92 +144,84 @@ def _get_recent_setlist(artist_name):
         )
         if not resp.ok:
             return None
-        data = resp.json()
-        setlists = data.get("setlist", [])
+        setlists = resp.json().get("setlist", [])
         if not setlists:
             return None
         for setlist in setlists:
-            songs = []
-            for sset in setlist.get("sets", {}).get("set", []):
-                for song in sset.get("song", []):
-                    name = song.get("name", "").strip()
-                    if name:
-                        songs.append(name)
+            songs = [
+                song.get("name", "").strip()
+                for sset in setlist.get("sets", {}).get("set", [])
+                for song in sset.get("song", [])
+                if song.get("name", "").strip()
+            ]
             if len(songs) >= 3:
                 return songs
-        page += 1
     return None
 
 
 @app.route("/api/create-playlist", methods=["POST"])
 def create_playlist():
-    if "access_token" not in session:
-        return jsonify({"error": "not_authenticated"}), 401
-
     body = request.get_json()
     artists = body.get("artists", [])
     if not artists:
         return jsonify({"error": "no_artists"}), 400
 
+    try:
+        hdrs = spotify_headers()
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 503
+
     all_track_ids = []
     artist_results = []
 
     for artist in artists:
-        artist_name = artist.get("name", "")
-        songs = _get_recent_setlist(artist_name)
+        name = artist.get("name", "")
+        songs = _get_recent_setlist(name)
         if not songs:
-            artist_results.append({"name": artist_name, "status": "no_setlist", "tracks": 0})
+            artist_results.append({"name": name, "status": "no_setlist", "tracks": 0})
             continue
 
         track_ids = []
         for song in songs:
-            search_resp = requests.get(
+            r = requests.get(
                 f"{SPOTIFY_API_BASE}/search",
-                headers=_spotify_headers(),
-                params={"q": f"artist:{artist_name} track:{song}", "type": "track", "limit": 1},
+                headers=hdrs,
+                params={"q": f"artist:{name} track:{song}", "type": "track", "limit": 1},
             )
-            if search_resp.status_code == 401:
-                if _refresh_token():
-                    search_resp = requests.get(
-                        f"{SPOTIFY_API_BASE}/search",
-                        headers=_spotify_headers(),
-                        params={"q": f"artist:{artist_name} track:{song}", "type": "track", "limit": 1},
-                    )
-                else:
-                    return jsonify({"error": "auth_expired"}), 401
-            if search_resp.ok:
-                tracks = search_resp.json().get("tracks", {}).get("items", [])
-                if tracks:
-                    track_ids.append(tracks[0]["id"])
+            if r.ok:
+                items = r.json().get("tracks", {}).get("items", [])
+                if items:
+                    track_ids.append(items[0]["id"])
 
         all_track_ids.extend(track_ids)
-        artist_results.append({"name": artist_name, "status": "ok", "tracks": len(track_ids)})
+        artist_results.append({"name": name, "status": "ok", "tracks": len(track_ids)})
 
     if not all_track_ids:
         return jsonify({"error": "no_tracks_found", "details": artist_results}), 400
 
-    me_resp = requests.get(f"{SPOTIFY_API_BASE}/me", headers=_spotify_headers())
-    if not me_resp.ok:
+    me = requests.get(f"{SPOTIFY_API_BASE}/me", headers=hdrs)
+    if not me.ok:
         return jsonify({"error": "could_not_get_user"}), 502
-    user_id = me_resp.json()["id"]
+    user_id = me.json()["id"]
 
     today = date.today().strftime("%Y-%m-%d")
-    playlist_resp = requests.post(
+    pl = requests.post(
         f"{SPOTIFY_API_BASE}/users/{user_id}/playlists",
-        headers={**_spotify_headers(), "Content-Type": "application/json"},
-        json={"name": f"Festival Setlist – {today}", "public": False, "description": "Created by Festival Setlist Creator"},
+        headers={**hdrs, "Content-Type": "application/json"},
+        json={"name": f"Festival Setlist – {today}", "public": False,
+              "description": "Created by Festival Setlist Creator"},
     )
-    if not playlist_resp.ok:
+    if not pl.ok:
         return jsonify({"error": "playlist_creation_failed"}), 502
-    playlist = playlist_resp.json()
-    playlist_id = playlist["id"]
-    playlist_url = playlist["external_urls"]["spotify"]
+
+    playlist_id = pl.json()["id"]
+    playlist_url = pl.json()["external_urls"]["spotify"]
 
     for i in range(0, len(all_track_ids), 100):
-        chunk = all_track_ids[i : i + 100]
+        chunk = all_track_ids[i: i + 100]
         requests.post(
             f"{SPOTIFY_API_BASE}/playlists/{playlist_id}/tracks",
-            headers={**_spotify_headers(), "Content-Type": "application/json"},
+            headers={**hdrs, "Content-Type": "application/json"},
             json={"uris": [f"spotify:track:{tid}" for tid in chunk]},
         )
 

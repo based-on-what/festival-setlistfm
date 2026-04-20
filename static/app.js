@@ -1,22 +1,6 @@
 const selectedArtists = [];
 let searchTimeout = null;
 
-async function checkAuth() {
-  const res = await fetch("/api/auth-status");
-  const data = await res.json();
-  if (data.authenticated) {
-    document.getElementById("login-btn").classList.add("hidden");
-    document.getElementById("logout-area").classList.remove("hidden");
-    document.getElementById("main-content").classList.remove("hidden");
-    document.getElementById("auth-notice").classList.add("hidden");
-  } else {
-    document.getElementById("login-btn").classList.remove("hidden");
-    document.getElementById("logout-area").classList.add("hidden");
-    document.getElementById("main-content").classList.add("hidden");
-    document.getElementById("auth-notice").classList.remove("hidden");
-  }
-}
-
 function showError(id, msg) {
   const el = document.getElementById(id);
   el.textContent = msg;
@@ -58,13 +42,9 @@ async function searchArtists(q) {
   try {
     const res = await fetch(`/api/search-artist?q=${encodeURIComponent(q)}`);
     document.getElementById("search-spinner").classList.add("hidden");
-    if (res.status === 401) {
-      showError("search-error", "Session expired. Please reconnect Spotify.");
-      return;
-    }
     const data = await res.json();
-    if (data.error) {
-      showError("search-error", "Search failed. Try again.");
+    if (!res.ok || data.error) {
+      showError("search-error", data.error || "Search failed. Try again.");
       return;
     }
     renderDropdown(data.artists || []);
@@ -165,10 +145,10 @@ async function createPlaylist() {
     if (!res.ok) {
       const msg =
         data.error === "no_tracks_found"
-          ? "No matching tracks found on Spotify for any artist."
-          : data.error === "not_authenticated"
-          ? "Session expired. Please reconnect Spotify."
-          : "Failed to create playlist. Please try again.";
+          ? "No matching tracks found on Spotify for any of these artists."
+          : data.error === "no_artists"
+          ? "Add at least one artist first."
+          : data.error || "Failed to create playlist. Please try again.";
       showError("create-error", msg);
       return;
     }
@@ -189,8 +169,7 @@ function showResult(data) {
   const resultCard = document.getElementById("result-card");
   resultCard.classList.remove("hidden");
 
-  const link = document.getElementById("playlist-link");
-  link.href = data.playlist_url;
+  document.getElementById("playlist-link").href = data.playlist_url;
 
   const summary = document.getElementById("artist-summary");
   summary.innerHTML = "";
@@ -198,8 +177,7 @@ function showResult(data) {
     const item = document.createElement("div");
     item.className = "summary-item";
     const statusClass = a.status === "ok" ? "status-ok" : "status-warn";
-    const statusText =
-      a.status === "ok" ? `${a.tracks} tracks` : "No setlist found";
+    const statusText = a.status === "ok" ? `${a.tracks} tracks` : "No setlist found";
     item.innerHTML = `
       <span>${escapeHtml(a.name)}</span>
       <span class="${statusClass}">${statusText}</span>
@@ -207,8 +185,7 @@ function showResult(data) {
     summary.appendChild(item);
   });
 
-  const player = document.getElementById("player-wrap");
-  player.innerHTML = `<iframe
+  document.getElementById("player-wrap").innerHTML = `<iframe
     src="https://open.spotify.com/embed/playlist/${data.playlist_id}?utm_source=generator&theme=0"
     height="352"
     allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
@@ -232,5 +209,3 @@ function escapeHtml(str) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
-
-checkAuth();
