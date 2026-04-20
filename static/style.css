@@ -451,3 +451,47 @@ footer a:hover { opacity: 1; }
   color: var(--muted, #888);
   font-size: 0.78rem;
 }
+
+/* ── Missing tracks warning box ── */
+.warning-box {
+  background: #fff8e1;
+  color: #7a5c00;
+  border: 1px solid #ffe082;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+[data-theme="dark"] .warning-box {
+  background: #3a2e00;
+  color: #ffe58a;
+  border-color: #6b5500;
+}
+
+.warning-title {
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.warning-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-bottom: 0.4rem;
+}
+
+.warning-row:last-child {
+  margin-bottom: 0;
+}
+
+.warning-artist {
+  font-weight: 700;
+}
+
+.warning-songs {
+  color: inherit;
+  opacity: 0.85;
+  padding-left: 1.4rem;
+}

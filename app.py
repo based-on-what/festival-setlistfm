@@ -201,18 +201,21 @@ def _resolve_track(hdrs, performing_artist, song, prefer_original):
 
 
 def _find_tracks_parallel(hdrs, performing_artist, songs, prefer_original):
-    """Resolve all songs for one artist in parallel to avoid request timeouts."""
-    track_ids = []
+    """Resolve all songs for one artist in parallel, tracking missing ones."""
+    results = []  # list of (song_name, track_id_or_None)
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = {
             executor.submit(_resolve_track, hdrs, performing_artist, song, prefer_original): song
             for song in songs
         }
         for future in as_completed(futures):
+            song = futures[future]
             tid = future.result()
-            if tid:
-                track_ids.append(tid)
-    return track_ids
+            results.append((song["name"], tid))
+
+    track_ids = [tid for _, tid in results if tid]
+    missing = [name for name, tid in results if not tid]
+    return track_ids, missing
 
 
 def _collect_tracks(artists, hdrs, prefer_original, include_taped):
@@ -223,11 +226,16 @@ def _collect_tracks(artists, hdrs, prefer_original, include_taped):
         mbid = artist.get("mbid")
         songs = _get_recent_setlist(mbid, name, include_taped)
         if not songs:
-            artist_results.append({"name": name, "status": "no_setlist", "tracks": 0})
+            artist_results.append({"name": name, "status": "no_setlist", "tracks": 0, "missing": []})
             continue
-        track_ids = _find_tracks_parallel(hdrs, name, songs, prefer_original)
+        track_ids, missing = _find_tracks_parallel(hdrs, name, songs, prefer_original)
         all_track_ids.extend(track_ids)
-        artist_results.append({"name": name, "status": "ok", "tracks": len(track_ids)})
+        artist_results.append({
+            "name": name,
+            "status": "ok" if track_ids else "no_tracks",
+            "tracks": len(track_ids),
+            "missing": missing,
+        })
     return all_track_ids, artist_results
 
 

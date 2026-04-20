@@ -84,10 +84,8 @@ function renderDropdown(artists) {
     const item = document.createElement("div");
     item.className = "dropdown-item";
 
-    // setlist.fm doesn't provide images — always show placeholder
     const thumb = `<div class="dropdown-thumb-placeholder">🎤</div>`;
 
-    // Use disambiguation as subtitle when available (e.g. "US rock band")
     const sub = artist.disambiguation
       ? `<span class="dropdown-meta">${escapeHtml(artist.disambiguation)}</span>`
       : "";
@@ -145,7 +143,6 @@ function renderArtistList() {
     li.className = "artist-item";
     li.draggable = true;
 
-    // setlist.fm has no images
     const thumb = `<div class="artist-item-thumb-placeholder">🎤</div>`;
 
     li.innerHTML = `
@@ -251,6 +248,39 @@ function showResult(data) {
 
   document.getElementById("playlist-link").href = data.playlist_url;
 
+  // ── Missing tracks warning box ──
+  const warningBox = document.getElementById("warning-box");
+  warningBox.innerHTML = "";
+
+  const warnings = (data.artists || []).filter(
+    (a) => a.missing && a.missing.length > 0
+  );
+
+  if (warnings.length) {
+    const rows = warnings
+      .map((a) => {
+        const MAX = 5;
+        const shown = a.missing.slice(0, MAX);
+        const extra = a.missing.length - MAX;
+        const songList = shown.map((s) => `"${escapeHtml(s)}"`).join(", ");
+        const suffix = extra > 0 ? ` <em>+${extra} more</em>` : "";
+        return `<div class="warning-row">
+          <span class="warning-artist">🎤 ${escapeHtml(a.name)}</span>
+          <span class="warning-songs">${songList}${suffix}</span>
+        </div>`;
+      })
+      .join("");
+
+    warningBox.innerHTML = `
+      <div class="warning-title">⚠️ Some tracks couldn't be found on Spotify:</div>
+      ${rows}
+    `;
+    warningBox.classList.remove("hidden");
+  } else {
+    warningBox.classList.add("hidden");
+  }
+
+  // ── Artist summary ──
   const summary = document.getElementById("artist-summary");
   summary.innerHTML = "";
   (data.artists || []).forEach((a) => {
@@ -269,7 +299,7 @@ function showResult(data) {
   document.getElementById("player-wrap").innerHTML = `<iframe
     src="https://open.spotify.com/embed/playlist/${data.playlist_id}?utm_source=generator&theme=0"
     height="352"
-    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture; web-share"
     loading="lazy">
   </iframe>`;
 }
@@ -280,6 +310,7 @@ function resetResult() {
   document.getElementById("result-card").classList.add("hidden");
   document.getElementById("artists-card").classList.remove("hidden");
   document.getElementById("player-wrap").innerHTML = "";
+  document.getElementById("warning-box").classList.add("hidden");
 }
 
 // ── Utils ──────────────────────────────────────────────────────────────────────
