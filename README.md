@@ -13,10 +13,9 @@ Build a Spotify playlist from the most recent setlists of your favorite festival
 
 | Variable | Description |
 | --- | --- |
-| `SPOTIFY_CLIENT_ID` | Your Spotify app client ID |
-| `SPOTIFY_CLIENT_SECRET` | Your Spotify app client secret |
-| `SPOTIFY_REDIRECT_URI` | OAuth callback URL used during one-time setup (e.g. `http://localhost:3000/callback`) |
-| `SPOTIFY_REFRESH_TOKEN` | Long-lived token obtained via `/setup` — allows the app to operate without user login |
+| `SPOTIPY_CLIENT_ID` | Your Spotify app client ID |
+| `SPOTIPY_CLIENT_SECRET` | Your Spotify app client secret |
+| `SPOTIPY_REFRESH_TOKEN` | Long-lived Spotify refresh token (see below to obtain it) |
 | `SETLISTFM_API_KEY` | Your setlist.fm API key |
 
 ---
@@ -25,7 +24,7 @@ Build a Spotify playlist from the most recent setlists of your favorite festival
 
 ```bash
 # 1. Clone / enter the project
-cd festivalSetlistFm
+cd festival-setlistfm
 
 # 2. Create and activate a virtual environment
 python -m venv venv
@@ -34,9 +33,11 @@ source venv/bin/activate      # Windows: venv\Scripts\activate
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Copy and fill in environment variables
-cp .env.example .env
-# Edit .env with your actual keys
+# 4. Create a .env file with your keys
+# SPOTIPY_CLIENT_ID=...
+# SPOTIPY_CLIENT_SECRET=...
+# SPOTIPY_REFRESH_TOKEN=...
+# SETLISTFM_API_KEY=...
 
 # 5. Run the app
 python app.py
@@ -50,12 +51,8 @@ python app.py
 1. Push this repository to GitHub.
 2. Go to [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo**.
 3. Select the repository.
-4. In **Variables**, add the env vars from the table above (except `SPOTIFY_REFRESH_TOKEN` — you'll get it next).
-   - Set `SPOTIFY_REDIRECT_URI` to `https://<your-railway-domain>/callback`
-5. Update your Spotify app's **Redirect URIs** to include that Railway URL.
-6. Railway auto-detects the `Procfile` and deploys.
-7. Visit `https://<your-railway-domain>/setup` once to authorize the app with Spotify. Copy the `SPOTIFY_REFRESH_TOKEN` shown on screen and add it to your Railway variables.
-8. Redeploy (or restart the service) — the app is now fully operational with no login required.
+4. In **Variables**, add the four env vars from the table above.
+5. Railway auto-detects the `Procfile` and deploys.
 
 ---
 
@@ -64,12 +61,12 @@ python app.py
 ### Spotify
 
 1. Go to [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) and log in.
-2. Click **Create App**.
-3. Fill in name + description. Under **Redirect URIs** add `http://localhost:3000/callback` (and your Railway URL when deploying).
-4. Copy **Client ID** and **Client Secret** into your `.env`.
+2. Click **Create App**. Fill in name + description.
+3. Copy **Client ID** and **Client Secret** — these are `SPOTIPY_CLIENT_ID` and `SPOTIPY_CLIENT_SECRET`.
+4. To get the **Refresh Token**, use a tool like [Spotify Refresh Token Generator](https://github.com/kylesarre/Spotify-RefreshTokenGenerator) or the Spotipy CLI (`spotipy-oauth2`) with scopes `playlist-modify-private playlist-modify-public`.
 
 ### setlist.fm
 
 1. Go to [api.setlist.fm](https://api.setlist.fm) and create a free account.
 2. Apply for an API key from your account settings.
-3. Copy the key into `SETLISTFM_API_KEY` in your `.env`.
+3. Copy the key into `SETLISTFM_API_KEY`.

@@ -2,22 +2,17 @@ import os
 import time
 import requests
 from datetime import date
-from flask import Flask, request, jsonify, render_template, redirect
+from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
-import urllib.parse
-import secrets
 
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
 
-SPOTIFY_CLIENT_ID = os.environ.get("SPOTIFY_CLIENT_ID")
-SPOTIFY_CLIENT_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET")
-SPOTIFY_REDIRECT_URI = os.environ.get("SPOTIFY_REDIRECT_URI")
+SPOTIPY_CLIENT_ID = os.environ.get("SPOTIPY_CLIENT_ID")
+SPOTIPY_CLIENT_SECRET = os.environ.get("SPOTIPY_CLIENT_SECRET")
 SETLISTFM_API_KEY = os.environ.get("SETLISTFM_API_KEY")
 
-SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize"
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_API_BASE = "https://api.spotify.com/v1"
 SETLISTFM_API_BASE = "https://api.setlist.fm/rest/1.0"
@@ -30,13 +25,13 @@ def get_access_token():
     global _access_token, _token_expiry
     if _access_token and time.time() < _token_expiry - 60:
         return _access_token
-    refresh_token = os.environ.get("SPOTIFY_REFRESH_TOKEN")
+    refresh_token = os.environ.get("SPOTIPY_REFRESH_TOKEN")
     if not refresh_token:
-        raise RuntimeError("SPOTIFY_REFRESH_TOKEN not configured. Visit /setup first.")
+        raise RuntimeError("SPOTIPY_REFRESH_TOKEN not configured.")
     resp = requests.post(
         SPOTIFY_TOKEN_URL,
         data={"grant_type": "refresh_token", "refresh_token": refresh_token},
-        auth=(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET),
+        auth=(SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET),
     )
     resp.raise_for_status()
     data = resp.json()
@@ -53,77 +48,6 @@ def spotify_headers():
 def index():
     return render_template("index.html")
 
-
-# ── One-time setup routes (get the refresh token once, then store in .env) ──
-
-@app.route("/setup")
-def setup():
-    missing = [v for v, val in [
-        ("SPOTIFY_CLIENT_ID", SPOTIFY_CLIENT_ID),
-        ("SPOTIFY_CLIENT_SECRET", SPOTIFY_CLIENT_SECRET),
-        ("SPOTIFY_REDIRECT_URI", SPOTIFY_REDIRECT_URI),
-    ] if not val]
-    if missing:
-        return f"""<!DOCTYPE html>
-<html><head><title>Setup Error</title>
-<style>
-  body{{background:#0a0a0a;color:#e0e0e0;font-family:monospace;padding:48px;max-width:600px;margin:auto}}
-  h2{{color:#ff4d4d;margin-bottom:16px}}
-  code{{background:#161616;padding:2px 8px;border-radius:4px;color:#39ff14}}
-  ul{{margin-top:12px;line-height:2}}
-</style></head><body>
-<h2>Missing environment variables</h2>
-<p>The following variables are not set in your Railway environment:</p>
-<ul>{''.join(f'<li><code>{v}</code></li>' for v in missing)}</ul>
-<p>Add them in Railway → Variables, then redeploy.</p>
-</body></html>""", 500
-    scope = "playlist-modify-private playlist-modify-public"
-    params = {
-        "client_id": SPOTIFY_CLIENT_ID,
-        "response_type": "code",
-        "redirect_uri": SPOTIFY_REDIRECT_URI,
-        "scope": scope,
-        "show_dialog": "true",
-    }
-    return redirect(f"{SPOTIFY_AUTH_URL}?{urllib.parse.urlencode(params)}")
-
-
-@app.route("/callback")
-def callback():
-    code = request.args.get("code")
-    error = request.args.get("error")
-    if error or not code:
-        return "<h3>Auth error — try /setup again.</h3>", 400
-    resp = requests.post(
-        SPOTIFY_TOKEN_URL,
-        data={
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": SPOTIFY_REDIRECT_URI,
-        },
-        auth=(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET),
-    )
-    if not resp.ok:
-        return "<h3>Token exchange failed — check your credentials.</h3>", 400
-    data = resp.json()
-    rt = data.get("refresh_token", "")
-    return f"""<!DOCTYPE html>
-<html><head><title>Setup</title>
-<style>
-  body{{background:#0d0d0d;color:#f0f0f0;font-family:monospace;padding:48px;max-width:600px;margin:auto}}
-  pre{{background:#1a1a1a;border:1px solid #2e2e2e;padding:20px;border-radius:8px;word-break:break-all;white-space:pre-wrap}}
-  h2{{color:#1db954;margin-bottom:16px}}
-  p{{color:#888;margin-bottom:12px;line-height:1.5}}
-</style>
-</head><body>
-<h2>Setup complete ✓</h2>
-<p>Copy the line below into your <code>.env</code> file (or Railway environment variables), then restart the app.</p>
-<pre>SPOTIFY_REFRESH_TOKEN={rt}</pre>
-<p>After restarting, visit <a href="/" style="color:#1db954">the app</a>.</p>
-</body></html>"""
-
-
-# ── API routes ──
 
 @app.route("/api/search-artist")
 def search_artist():
