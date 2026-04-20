@@ -176,21 +176,11 @@ def _search_spotify_track_any_artist(hdrs, track_name):
 
 
 def _resolve_track(hdrs, performing_artist, song, prefer_original):
-    """
-    Returns a list of Spotify track IDs (usually one, but multiple for medleys).
-    Returns an empty list if nothing is found.
-
-    Strategy:
-    1. Search the full song name on Spotify first (handles titles like "Refuse / Resist").
-    2. Only if not found AND the name contains " / ", treat it as a medley and
-       search each segment individually.
-    3. Normal fallback logic for non-medley songs.
-    """
     name = song["name"]
     cover_artist = song["cover_artist"]
     is_medley_candidate = song["is_medley_candidate"]
 
-    # ── Step 1: search the full name as-is ────────────────────────────────────
+    # ── Step 1: buscar nombre completo ────────────────────────────────────────
     if prefer_original and cover_artist:
         tid = _search_spotify_track(hdrs, cover_artist, name)
         if not tid:
@@ -201,14 +191,13 @@ def _resolve_track(hdrs, performing_artist, song, prefer_original):
             tid = _search_spotify_track(hdrs, cover_artist, name)
 
     if tid:
-        return [tid]  # found as a full title — not a real medley
+        return [tid]
 
-    # ── Step 2: if " / " in name and full search failed → treat as medley ─────
+    # ── Step 2: si " / " y no encontrado → tratar como medley ────────────────
     if is_medley_candidate:
         parts = [p.strip() for p in name.split(" / ") if p.strip()]
         results = []
         for part in parts:
-            # cover_artist applies to the whole medley line (setlist.fm limitation)
             if prefer_original and cover_artist:
                 t = _search_spotify_track(hdrs, cover_artist, part)
                 if not t:
@@ -221,12 +210,11 @@ def _resolve_track(hdrs, performing_artist, song, prefer_original):
                 t = _search_spotify_track_any_artist(hdrs, part)
             if t:
                 results.append(t)
-        return results  # may be empty if nothing found
+        return results
 
-    # ── Step 3: last-resort fallback for normal songs ─────────────────────────
-    tid = _search_spotify_track_any_artist(hdrs, name)
-    return [tid] if tid else []
-
+    # ── Step 3: canción normal sin cover → no hay más fallbacks ──────────────
+    # (sin _search_spotify_track_any_artist para evitar falsos positivos)
+    return []
 
 def _find_tracks_parallel(hdrs, performing_artist, songs, prefer_original):
     """Resolve all songs for one artist in parallel, tracking missing ones."""
