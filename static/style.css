@@ -13,6 +13,13 @@
   --danger: #ff4d4d;
   --radius: 12px;
   --radius-sm: 8px;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --t-fast: 150ms cubic-bezier(0.2, 0, 0, 1);
+  --t-base: 220ms cubic-bezier(0.2, 0, 0, 1);
+  --warning-bg: oklch(17% 0.045 75);
+  --warning-fg: oklch(84% 0.09 75);
+  --warning-border: oklch(33% 0.07 75);
+  --success: oklch(72% 0.22 140);
 }
 
 [data-theme="light"] {
@@ -26,6 +33,10 @@
   --accent: #ff073a;
   --accent-hover: #e0002f;
   --danger: #cc0000;
+  --warning-bg: oklch(97% 0.035 85);
+  --warning-fg: oklch(37% 0.09 75);
+  --warning-border: oklch(76% 0.1 85);
+  --success: oklch(45% 0.18 140);
 }
 
 body {
@@ -63,6 +74,7 @@ body {
   border-radius: var(--radius);
   padding: 24px;
   margin-bottom: 16px;
+  contain: layout style;
 }
 
 .card-title {
@@ -94,7 +106,7 @@ body {
 
 .input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(57, 255, 20, 0.1);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 18%, transparent);
 }
 
 .input::placeholder { color: var(--muted); }
@@ -271,7 +283,7 @@ body {
 }
 .btn-primary:hover {
   background: var(--accent-hover);
-  box-shadow: 0 0 12px rgba(57, 255, 20, 0.35);
+  box-shadow: 0 0 20px color-mix(in oklch, var(--accent) 45%, transparent);
 }
 
 .btn-spotify {
@@ -284,7 +296,7 @@ body {
 }
 .btn-spotify:hover {
   background: var(--accent-hover);
-  box-shadow: 0 0 12px rgba(57, 255, 20, 0.35);
+  box-shadow: 0 0 20px color-mix(in oklch, var(--accent) 45%, transparent);
 }
 
 .btn-ghost {
@@ -358,8 +370,8 @@ body {
   padding: 8px 12px;
 }
 
-.summary-item .status-ok { color: var(--accent); font-weight: 700; }
-.summary-item .status-warn { color: #f5a623; font-weight: 700; }
+.summary-item .status-ok { color: var(--success); font-weight: 700; }
+.summary-item .status-warn { color: oklch(72% 0.14 65); font-weight: 700; }
 
 /* Player */
 .player-wrap {
@@ -439,7 +451,7 @@ footer a:hover { opacity: 1; }
   padding: 1rem;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface-alt, var(--surface));
+  background: var(--surface2);
 }
 
 .option-label {
@@ -472,20 +484,14 @@ footer a:hover { opacity: 1; }
 
 /* ── Missing tracks warning box ── */
 .warning-box {
-  background: #fff8e1;
-  color: #7a5c00;
-  border: 1px solid #ffe082;
+  background: var(--warning-bg);
+  color: var(--warning-fg);
+  border: 1px solid var(--warning-border);
   border-radius: 8px;
   padding: 0.85rem 1rem;
   margin-bottom: 1rem;
   font-size: 0.82rem;
   line-height: 1.5;
-}
-
-[data-theme="dark"] .warning-box {
-  background: #3a2e00;
-  color: #ffe58a;
-  border-color: #6b5500;
 }
 
 .warning-title {
@@ -527,16 +533,61 @@ footer a:hover { opacity: 1; }
 }
 
 /* Empty state */
-#empty-list-msg {
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 0 16px;
+}
+
+.empty-state-ring {
+  width: 44px;
+  height: 44px;
+  border: 1.5px dashed var(--border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.empty-state-text {
+  font-size: 0.8rem;
+  color: var(--muted);
   text-align: center;
-  padding: 24px 0 8px;
-  font-size: 0.85rem;
+  max-width: 28ch;
+  line-height: 1.5;
+}
+
+/* ── Entry animations ── */
+@keyframes dropdown-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown:not(.hidden) {
+  animation: dropdown-in var(--t-fast) var(--ease-out) both;
+}
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+#result-card:not(.hidden) {
+  animation: card-in var(--t-base) var(--ease-out) both;
 }
 
 /* Respect motion preferences */
 @media (prefers-reduced-motion: reduce) {
-  .artist-item { animation: none; }
-  .spinner    { animation-duration: 1.5s; }
+  .artist-item  { animation: none; }
+  .spinner      { animation-duration: 1.5s; }
+  .dropdown     { animation: none; }
+  #result-card  { animation: none; }
   *,
   *::before,
   *::after { transition-duration: 0.01ms !important; }

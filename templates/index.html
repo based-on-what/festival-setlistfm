@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="dark light" />
+  <script>document.documentElement.dataset.theme=localStorage.getItem('festival-theme')||'dark'</script>
   <title>Festival Setlist Creator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -43,7 +44,10 @@
 
       <section class="card" id="artists-card">
         <h2 class="card-title">Your Festival Lineup</h2>
-        <p id="empty-list-msg" class="muted">No artists added yet.</p>
+        <div id="empty-list-msg" class="empty-state">
+          <div class="empty-state-ring" aria-hidden="true">+</div>
+          <p class="empty-state-text">Search above to add artists to your lineup.</p>
+        </div>
         <ul id="artist-list" class="artist-list" aria-label="Festival lineup" aria-live="polite"></ul>
 
         <!-- ── Playlist options ── -->
