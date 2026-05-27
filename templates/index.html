@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark light" />
   <title>Festival Setlist Creator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,7 +16,7 @@
   <div class="app">
     <header class="header">
       <h1 class="logo">🎪 Festival Setlist Creator</h1>
-      <button id="theme-toggle" class="theme-toggle">☾/☀</button>
+      <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">☾/☀</button>
     </header>
 
     <main id="main-content">
@@ -28,17 +29,22 @@
             class="input"
             placeholder="Artist name..."
             autocomplete="off"
+            role="combobox"
+            aria-expanded="false"
+            aria-controls="search-results"
+            aria-autocomplete="list"
+            aria-haspopup="listbox"
           />
           <div id="search-spinner" class="spinner hidden"></div>
         </div>
-        <div id="search-results" class="dropdown hidden"></div>
-        <p id="search-error" class="error hidden"></p>
+        <div id="search-results" class="dropdown hidden" role="listbox" aria-label="Artist suggestions"></div>
+        <p id="search-error" class="error hidden" role="alert" aria-live="assertive"></p>
       </section>
 
       <section class="card" id="artists-card">
         <h2 class="card-title">Your Festival Lineup</h2>
         <p id="empty-list-msg" class="muted">No artists added yet.</p>
-        <ul id="artist-list" class="artist-list"></ul>
+        <ul id="artist-list" class="artist-list" aria-label="Festival lineup" aria-live="polite"></ul>
 
         <!-- ── Playlist options ── -->
         <div class="options-group hidden" id="options-group">
@@ -74,7 +80,7 @@
           <span id="create-label">Create Festival Setlist</span>
           <span id="create-spinner" class="spinner hidden"></span>
         </button>
-        <p id="create-error" class="error hidden"></p>
+        <p id="create-error" class="error hidden" role="alert" aria-live="assertive"></p>
       </section>
 
       <section class="card hidden" id="result-card">
@@ -99,6 +105,7 @@
     </a>
   </footer>
 
+  <div id="announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
   <script src="/static/app.js"></script>
 </body>
 </html>

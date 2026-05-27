@@ -1,9 +1,10 @@
 const selectedArtists = [];
-let searchTimeout = null;
-let dragSrcIndex  = null;
-let swapSrcIndex  = null;
+let searchTimeout      = null;
+let dragSrcIndex       = null;
+let swapSrcIndex       = null;
+let activeOptionIndex  = -1;
 
-// ── Error messages (FIX: mapa completo de códigos → mensajes legibles) ─────────
+// ── Error messages ─────────────────────────────────────────────────────────────
 
 const ERROR_MESSAGES = {
   // setlist.fm
@@ -29,13 +30,13 @@ const ERROR_MESSAGES = {
   spotify_playlist_creation_failed:  "Spotify rejected the playlist creation. Check app permissions and try again.",
 
   // Generic
-  no_artists:      "Add at least one artist first.",
-  no_tracks_found: "No tracks were found on Spotify for any of the selected artists.",
+  no_artists:        "Add at least one artist first.",
+  too_many_artists:  "Too many artists. Please remove some and try again.",
+  no_tracks_found:   "No tracks were found on Spotify for any of the selected artists.",
 };
 
 function friendlyError(code, fallback) {
   if (!code) return fallback || "An unexpected error occurred. Please try again.";
-  // FIX: si el código tiene prefijo http (ej. "setlistfm_http_500"), mensaje genérico con el código
   if (/_(http|auth_http)_\d{3}$/.test(code)) {
     const status = code.match(/\d{3}$/)[0];
     return `Remote API returned an error (HTTP ${status}). Try again in a moment.`;
@@ -43,31 +44,23 @@ function friendlyError(code, fallback) {
   return ERROR_MESSAGES[code] || fallback || `Unexpected error: ${code}`;
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function todayFormatted() {
-  const d    = new Date();
-  const dd   = String(d.getDate()).padStart(2, "0");
-  const mm   = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
+  const d  = new Date();
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
-(function initTheme() {
-  const saved = localStorage.getItem("festival-theme") || "dark";
-  document.documentElement.setAttribute("data-theme", saved);
-  document.getElementById("theme-toggle").addEventListener("click", () => {
-    const next =
-      document.documentElement.getAttribute("data-theme") === "dark"
-        ? "light"
-        : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    localStorage.setItem("festival-theme", next);
-  });
-})();
-
-document.getElementById("playlist-name-input").placeholder =
-  `Festival Setlist – ${todayFormatted()}`;
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 function showError(id, msg) {
   const el = document.getElementById(id);
@@ -81,7 +74,50 @@ function clearError(id) {
   el.classList.add("hidden");
 }
 
-// ── Search (powered by setlist.fm) ────────────────────────────────────────────
+function announce(msg) {
+  const el = document.getElementById("announcer");
+  el.textContent = "";
+  requestAnimationFrame(() => { el.textContent = msg; });
+}
+
+function setDropdownOpen(open) {
+  const input = document.getElementById("artist-input");
+  input.setAttribute("aria-expanded", open ? "true" : "false");
+  if (!open) {
+    activeOptionIndex = -1;
+    input.removeAttribute("aria-activedescendant");
+  }
+}
+
+function updateActiveOption(items) {
+  const input = document.getElementById("artist-input");
+  items.forEach((item, i) => {
+    item.setAttribute("aria-selected", i === activeOptionIndex ? "true" : "false");
+  });
+  if (activeOptionIndex >= 0) {
+    input.setAttribute("aria-activedescendant", `option-${activeOptionIndex}`);
+    items[activeOptionIndex].scrollIntoView({ block: "nearest" });
+  } else {
+    input.removeAttribute("aria-activedescendant");
+  }
+}
+
+// ── Theme ──────────────────────────────────────────────────────────────────────
+
+(function initTheme() {
+  const saved = localStorage.getItem("festival-theme") || "dark";
+  document.documentElement.setAttribute("data-theme", saved);
+  document.getElementById("theme-toggle").addEventListener("click", () => {
+    const next =
+      document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("festival-theme", next);
+  });
+})();
+
+document.getElementById("playlist-name-input").placeholder = `Festival Setlist – ${todayFormatted()}`;
+
+// ── Search ─────────────────────────────────────────────────────────────────────
 
 document.getElementById("artist-input").addEventListener("input", (e) => {
   clearTimeout(searchTimeout);
@@ -96,17 +132,35 @@ document.getElementById("artist-input").addEventListener("input", (e) => {
 });
 
 document.getElementById("artist-input").addEventListener("keydown", (e) => {
+  const container = document.getElementById("search-results");
+  const items     = [...container.querySelectorAll("[role='option']")];
+
   if (e.key === "Escape") {
-    document.getElementById("search-results").classList.add("hidden");
+    container.classList.add("hidden");
+    setDropdownOpen(false);
+    return;
+  }
+
+  if (container.classList.contains("hidden") || !items.length) return;
+
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    activeOptionIndex = Math.min(activeOptionIndex + 1, items.length - 1);
+    updateActiveOption(items);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    activeOptionIndex = Math.max(activeOptionIndex - 1, -1);
+    updateActiveOption(items);
+  } else if (e.key === "Enter" && activeOptionIndex >= 0) {
+    e.preventDefault();
+    items[activeOptionIndex].click();
   }
 });
 
 document.addEventListener("click", (e) => {
-  if (
-    !e.target.closest(".search-box") &&
-    !e.target.closest(".dropdown")
-  ) {
+  if (!e.target.closest(".search-box") && !e.target.closest(".dropdown")) {
     document.getElementById("search-results").classList.add("hidden");
+    setDropdownOpen(false);
   }
 });
 
@@ -118,7 +172,6 @@ async function searchArtists(q) {
     const data = await res.json();
 
     if (!res.ok || data.error) {
-      // FIX: antes mostraba el código crudo; ahora muestra mensaje legible
       showError("search-error", friendlyError(data.error, "Artist search failed. Try again."));
       return;
     }
@@ -132,46 +185,62 @@ async function searchArtists(q) {
 
 function renderDropdown(artists) {
   const container = document.getElementById("search-results");
+  activeOptionIndex = -1;
   container.innerHTML = "";
+
   if (!artists.length) {
     container.classList.add("hidden");
+    setDropdownOpen(false);
     return;
   }
-  artists.forEach((artist) => {
+
+  artists.forEach((artist, i) => {
     const item = document.createElement("div");
     item.className = "dropdown-item";
-    const thumb = `<div class="dropdown-thumb-placeholder">🎤</div>`;
-    const sub   = artist.disambiguation
+    item.setAttribute("role", "option");
+    item.setAttribute("id", `option-${i}`);
+    item.setAttribute("aria-selected", "false");
+    const sub = artist.disambiguation
       ? `<span class="dropdown-meta">${escapeHtml(artist.disambiguation)}</span>`
       : "";
-    item.innerHTML = `${thumb}<div class="dropdown-info"><span class="dropdown-name">${escapeHtml(
-      artist.name
-    )}</span>${sub}</div>`;
+    item.innerHTML = `
+      <div class="dropdown-thumb-placeholder" aria-hidden="true">🎤</div>
+      <div class="dropdown-info">
+        <span class="dropdown-name">${escapeHtml(artist.name)}</span>${sub}
+      </div>`;
     item.addEventListener("click", () => addArtist(artist));
     container.appendChild(item);
   });
+
+  setDropdownOpen(true);
   container.classList.remove("hidden");
 }
 
 // ── Artist list management ─────────────────────────────────────────────────────
 
 function addArtist(artist) {
-  if (selectedArtists.find((a) => a.id === artist.id)) {
-    document.getElementById("search-results").classList.add("hidden");
-    document.getElementById("artist-input").value = "";
-    return;
-  }
-  selectedArtists.push(artist);
-  renderArtistList();
+  const input = document.getElementById("artist-input");
   document.getElementById("search-results").classList.add("hidden");
-  document.getElementById("artist-input").value = "";
-  clearError("search-error");
+  setDropdownOpen(false);
+  input.value = "";
+
+  if (!selectedArtists.find((a) => a.id === artist.id)) {
+    selectedArtists.push(artist);
+    renderArtistList();
+    announce(`${artist.name} added to lineup`);
+    clearError("search-error");
+  }
+
+  input.focus();
 }
 
 function removeArtist(id) {
   const idx = selectedArtists.findIndex((a) => a.id === id);
-  if (idx !== -1) selectedArtists.splice(idx, 1);
+  if (idx === -1) return;
+  const name = selectedArtists[idx].name;
+  selectedArtists.splice(idx, 1);
   renderArtistList();
+  announce(`${name} removed from lineup`);
 }
 
 function handleSwapTap(index) {
@@ -182,7 +251,7 @@ function handleSwapTap(index) {
     swapSrcIndex = null;
     renderArtistList();
   } else {
-    const tmp                    = selectedArtists[swapSrcIndex];
+    const tmp                     = selectedArtists[swapSrcIndex];
     selectedArtists[swapSrcIndex] = selectedArtists[index];
     selectedArtists[index]        = tmp;
     swapSrcIndex                  = null;
@@ -190,12 +259,28 @@ function handleSwapTap(index) {
   }
 }
 
+// ── Artist list rendering + event delegation ───────────────────────────────────
+
+const artistList = document.getElementById("artist-list");
+
+// Single delegated listener for click actions (remove + swap).
+// Drag events remain per-item since delegation across dragover/drop is unreliable.
+artistList.addEventListener("click", (e) => {
+  const target = e.target.closest("[data-action]");
+  if (!target) return;
+  e.stopPropagation();
+  if (target.dataset.action === "remove") {
+    removeArtist(target.dataset.id);
+  } else if (target.dataset.action === "swap") {
+    handleSwapTap(parseInt(target.dataset.index, 10));
+  }
+});
+
 function renderArtistList() {
-  const list         = document.getElementById("artist-list");
   const empty        = document.getElementById("empty-list-msg");
   const createBtn    = document.getElementById("create-btn");
   const optionsGroup = document.getElementById("options-group");
-  list.innerHTML = "";
+  artistList.innerHTML = "";
 
   if (!selectedArtists.length) {
     empty.classList.remove("hidden");
@@ -209,26 +294,22 @@ function renderArtistList() {
   optionsGroup.classList.remove("hidden");
 
   selectedArtists.forEach((artist, index) => {
-    const li              = document.createElement("li");
-    li.className          = "artist-item";
-    li.draggable          = true;
-    const isSwapSelected  = swapSrcIndex === index;
-    const thumb           = `<div class="artist-item-thumb-placeholder">🎤</div>`;
+    const li     = document.createElement("li");
+    li.className = "artist-item";
+    li.draggable = true;
 
+    const isSwapSelected = swapSrcIndex === index;
+
+    // Use data-* attributes instead of inline onclick to avoid JS-string escaping issues.
     li.innerHTML = `
-      <span class="drag-handle${isSwapSelected ? " swap-selected" : ""}" title="Drag to reorder">⠿</span>
-      ${thumb}
+      <span class="drag-handle${isSwapSelected ? " swap-selected" : ""}"
+            data-action="swap" data-index="${index}"
+            title="Drag to reorder">⠿</span>
+      <div class="artist-item-thumb-placeholder">🎤</div>
       <span class="artist-item-name">${escapeHtml(artist.name)}</span>
-      <button class="remove-btn" title="Remove" onclick="removeArtist('${escapeHtml(
-        artist.id
-      )}')">✕</button>
+      <button class="remove-btn" data-action="remove" data-id="${escapeHtml(artist.id)}"
+              title="Remove">✕</button>
     `;
-
-    const handle = li.querySelector(".drag-handle");
-    handle.addEventListener("click", (e) => {
-      e.stopPropagation();
-      handleSwapTap(index);
-    });
 
     li.addEventListener("dragstart", (e) => {
       dragSrcIndex = index;
@@ -252,12 +333,12 @@ function renderArtistList() {
     });
     li.addEventListener("dragend", () => {
       dragSrcIndex = null;
-      document.querySelectorAll(".artist-item").forEach((el) => {
-        el.classList.remove("dragging", "drag-over");
-      });
+      document.querySelectorAll(".artist-item").forEach((el) =>
+        el.classList.remove("dragging", "drag-over")
+      );
     });
 
-    list.appendChild(li);
+    artistList.appendChild(li);
   });
 }
 
@@ -265,15 +346,16 @@ function renderArtistList() {
 
 async function createPlaylist() {
   clearError("create-error");
-  const btn          = document.getElementById("create-btn");
-  const label        = document.getElementById("create-label");
-  const spinner      = document.getElementById("create-spinner");
+  const btn            = document.getElementById("create-btn");
+  const label          = document.getElementById("create-label");
+  const spinner        = document.getElementById("create-spinner");
   const preferOriginal = document.getElementById("opt-prefer-original").checked;
   const includeTaped   = document.getElementById("opt-include-taped").checked;
   const playlistName   = document.getElementById("playlist-name-input").value.trim();
 
-  btn.disabled       = true;
-  label.textContent  = "Building playlist…";
+  btn.disabled      = true;
+  btn.setAttribute("aria-busy", "true");
+  label.textContent = "Building playlist…";
   spinner.classList.remove("hidden");
 
   try {
@@ -291,7 +373,6 @@ async function createPlaylist() {
     const data = await res.json();
 
     if (!res.ok) {
-      // FIX: antes usaba un switch manual incompleto; ahora usa el mapa centralizado
       showError("create-error", friendlyError(data.error));
       return;
     }
@@ -301,6 +382,7 @@ async function createPlaylist() {
     showError("create-error", "Network error. Check your connection and try again.");
   } finally {
     btn.disabled      = false;
+    btn.removeAttribute("aria-busy");
     label.textContent = "Create Festival Setlist";
     spinner.classList.add("hidden");
   }
@@ -319,9 +401,7 @@ function showResult(data) {
   const warningBox = document.getElementById("warning-box");
   warningBox.innerHTML = "";
 
-  const warnings = [];
-
-  // FIX: antes sólo se avisaba de missing tracks; ahora también de artistas sin setlist
+  const warnings  = [];
   const noSetlist = (data.artists || []).filter((a) => a.status === "no_setlist");
   const noTracks  = (data.artists || []).filter((a) => a.status === "no_tracks");
   const missing   = (data.artists || []).filter((a) => a.missing && a.missing.length > 0);
@@ -344,13 +424,12 @@ function showResult(data) {
 
   if (missing.length) {
     const rows = missing
-      .map((a) => {
-        const songList = a.missing.map((s) => `"${escapeHtml(s)}"`).join(", ");
-        return `<div class="warning-row">
+      .map(
+        (a) => `<div class="warning-row">
           <span class="warning-artist">🎤 ${escapeHtml(a.name)}</span>
-          <span class="warning-songs">${songList}</span>
-        </div>`;
-      })
+          <span class="warning-songs">${a.missing.map((s) => `"${escapeHtml(s)}"`).join(", ")}</span>
+        </div>`
+      )
       .join("");
     warnings.push(`
       <div class="warning-row">
@@ -359,7 +438,6 @@ function showResult(data) {
       ${rows}`);
   }
 
-  // FIX: avisa si algún chunk de tracks falló al insertarse en la playlist
   if (data.failed_chunks > 0) {
     warnings.push(`
       <div class="warning-row">
@@ -375,14 +453,12 @@ function showResult(data) {
     warningBox.classList.add("hidden");
   }
 
-  // ── Artist summary ──
   const summary = document.getElementById("artist-summary");
   summary.innerHTML = "";
   (data.artists || []).forEach((a) => {
-    const item        = document.createElement("div");
-    item.className    = "summary-item";
+    const item     = document.createElement("div");
+    item.className = "summary-item";
 
-    // FIX: antes "no_tracks" y "no_setlist" mostraban el mismo texto genérico
     let statusClass, statusText;
     if (a.status === "ok") {
       statusClass = "status-ok";
@@ -402,12 +478,13 @@ function showResult(data) {
     summary.appendChild(item);
   });
 
-  document.getElementById("player-wrap").innerHTML = `<iframe
-    src="https://open.spotify.com/embed/playlist/${data.playlist_id}?utm_source=generator&theme=0"
-    height="352"
-    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture; web-share"
-    loading="lazy">
-  </iframe>`;
+  const safeId = String(data.playlist_id).replace(/[^a-zA-Z0-9]/g, "");
+  const iframe  = document.createElement("iframe");
+  iframe.src     = `https://open.spotify.com/embed/playlist/${safeId}?utm_source=generator&theme=0`;
+  iframe.height  = "352";
+  iframe.setAttribute("allow", "autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture; web-share");
+  iframe.setAttribute("loading", "lazy");
+  document.getElementById("player-wrap").appendChild(iframe);
 }
 
 function resetResult() {
@@ -419,15 +496,4 @@ function resetResult() {
   document.getElementById("artists-card").classList.remove("hidden");
   document.getElementById("player-wrap").innerHTML = "";
   document.getElementById("warning-box").classList.add("hidden");
-}
-
-// ── Utils ──────────────────────────────────────────────────────────────────────
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
