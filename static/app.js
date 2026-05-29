@@ -47,7 +47,6 @@ let swapSrcIndex  = null;
 // ── DOM refs (module is deferred, so DOM is ready) ────────────────────────────
 
 const artistInput   = document.getElementById('artist-input');
-const searchSpinner = document.getElementById('search-spinner');
 const artistListEl  = document.getElementById('artist-list');
 const emptyMsg      = document.getElementById('empty-list-msg');
 const createBtn     = document.getElementById('create-btn');
@@ -66,12 +65,15 @@ function announce(msg) {
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
 (function initTheme() {
+  const btn   = document.getElementById('theme-toggle');
   const saved = localStorage.getItem('festival-theme') || 'dark';
   document.documentElement.setAttribute('data-theme', saved);
-  document.getElementById('theme-toggle').addEventListener('click', () => {
+  btn.setAttribute('aria-pressed', String(saved === 'light'));
+  btn.addEventListener('click', () => {
     const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('festival-theme', next);
+    btn.setAttribute('aria-pressed', String(next === 'light'));
   });
 })();
 
@@ -92,10 +94,8 @@ artistInput.addEventListener('input', (e) => {
   const q = e.target.value.trim();
   if (!q) {
     dropdown.close();
-    searchSpinner.classList.add('hidden');
     return;
   }
-  searchSpinner.classList.remove('hidden');
   searchTimeout = setTimeout(() => searchArtists(q), 350);
 });
 
@@ -110,17 +110,18 @@ document.addEventListener('click', (e) => {
 });
 
 async function searchArtists(q) {
+  dropdown.showSkeleton();
   try {
     const res  = await fetch(`/api/search-artist?q=${encodeURIComponent(q)}`);
-    searchSpinner.classList.add('hidden');
     const data = await res.json();
     if (!res.ok || data.error) {
+      dropdown.hideSkeleton();
       Toast.error(friendlyError(data.error, 'Artist search failed. Try again.'));
       return;
     }
     dropdown.render(data.artists || []);
   } catch {
-    searchSpinner.classList.add('hidden');
+    dropdown.hideSkeleton();
     Toast.error('Network error. Check your connection and try again.');
   }
 }

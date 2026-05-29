@@ -27,7 +27,7 @@ export function createArtistItem(artist, index, { isSwapSelected = false } = {})
     <span class="${handleClass}"
           data-action="swap" data-index="${index}"
           role="button" tabindex="0"
-          title="Drag to reorder, or tap to swap">⠿</span>
+          aria-label="Drag to reorder, or tap to swap position">⠿</span>
     ${artist.imageUrl
       ? `<img class="artist-item-thumb"
               src="${escapeHtml(artist.imageUrl)}"

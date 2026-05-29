@@ -1,0 +1,117 @@
+/* ── Design Tokens ───────────────────────────────────────────────────────────
+   Single source of truth for all colors, spacing, radii, and transitions.
+   Neutrals are tinted toward hue 145 (green channel, chroma ≤ 0.016)
+   so they never read as dead grey against the accent.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Surfaces */
+  --bg:        oklch(9%  0.012 145);
+  --surface:   oklch(11% 0.014 145);
+  --surface-2: oklch(14% 0.015 145);
+  --surface-3: oklch(17% 0.016 145);
+
+  /* Borders */
+  --border: oklch(30% 0.15 136 / 0.28);
+
+  /* Accent — neon green */
+  --accent:       oklch(92% 0.28 136);
+  --accent-hover: oklch(86% 0.26 136);
+  --accent-glow:  oklch(92% 0.28 136 / 0.30);
+  --accent-subtle:oklch(92% 0.28 136 / 0.07);
+  --on-accent:    oklch(9%  0.012 145);
+
+  /* Text */
+  --text:  oklch(88% 0.018 145);
+  --muted: oklch(42% 0.04  145);
+
+  /* Semantic */
+  --danger:  oklch(65% 0.22 25);
+  --success: oklch(78% 0.22 145);
+
+  /* Toast — per-variant backgrounds, borders, icon colors */
+  --toast-error-bg:       oklch(14% 0.040 25);
+  --toast-error-border:   oklch(28% 0.100 25);
+  --toast-success-bg:     oklch(13% 0.040 145);
+  --toast-success-border: oklch(28% 0.100 145);
+  --toast-warning-bg:     oklch(14% 0.040 75);
+  --toast-warning-border: oklch(28% 0.100 75);
+  --toast-info-bg:        oklch(12% 0.020 145);
+  --toast-info-border:    oklch(24% 0.050 145);
+  --toast-warning-fg:     oklch(78% 0.18 75);
+  --toast-info-fg:        oklch(60% 0.08 220);
+
+  /* Warning box (inline, not toast) */
+  --warning-bg:     oklch(14% 0.040 75);
+  --warning-fg:     oklch(78% 0.18  75);
+  --warning-border: oklch(28% 0.100 75);
+
+  /* Skeleton shimmer */
+  --skeleton-base:  oklch(16% 0.010 145);
+  --skeleton-shine: oklch(20% 0.015 145);
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Radii */
+  --radius:    12px;
+  --radius-sm: 8px;
+
+  /* Transitions */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --t-fast: 150ms cubic-bezier(0.2, 0, 0, 1);
+  --t-base: 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+[data-theme="light"] {
+  /* Surfaces */
+  --bg:        oklch(96% 0.008 145);
+  --surface:   oklch(100% 0.005 145);
+  --surface-2: oklch(93%  0.008 145);
+  --surface-3: oklch(88%  0.010 145);
+
+  /* Borders */
+  --border: oklch(55% 0.18 25 / 0.30);
+
+  /* Accent — saturated red for light mode */
+  --accent:       oklch(48% 0.22 25);
+  --accent-hover: oklch(42% 0.22 25);
+  --accent-glow:  oklch(48% 0.22 25 / 0.25);
+  --accent-subtle:oklch(48% 0.22 25 / 0.07);
+  --on-accent:    oklch(99% 0.005 145);
+
+  /* Text */
+  --text:  oklch(16% 0.020 145);
+  --muted: oklch(55% 0.040 145);
+
+  /* Semantic */
+  --danger:  oklch(45% 0.22 25);
+  --success: oklch(45% 0.18 145);
+
+  /* Toast — light theme */
+  --toast-error-bg:       oklch(98% 0.015 25);
+  --toast-error-border:   oklch(80% 0.12  25);
+  --toast-success-bg:     oklch(97% 0.015 145);
+  --toast-success-border: oklch(75% 0.12  145);
+  --toast-warning-bg:     oklch(98% 0.015 75);
+  --toast-warning-border: oklch(78% 0.10  75);
+  --toast-info-bg:        oklch(97% 0.008 220);
+  --toast-info-border:    oklch(75% 0.08  220);
+  --toast-warning-fg:     oklch(42% 0.14  75);
+  --toast-info-fg:        oklch(38% 0.10  220);
+
+  /* Warning box — light */
+  --warning-bg:     oklch(98% 0.015 75);
+  --warning-fg:     oklch(42% 0.14  75);
+  --warning-border: oklch(78% 0.10  75);
+
+  /* Skeleton — light */
+  --skeleton-base:  oklch(90% 0.008 145);
+  --skeleton-shine: oklch(96% 0.005 145);
+}

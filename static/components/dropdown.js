@@ -1,4 +1,5 @@
-import { escapeHtml } from './utils.js';
+import { escapeHtml }    from './utils.js';
+import { SkeletonLoader } from './skeleton.js';
 
 /**
  * SearchDropdown — accessible combobox dropdown.
@@ -8,10 +9,11 @@ import { escapeHtml } from './utils.js';
  *
  * Usage:
  *   const dd = new SearchDropdown('search-results', 'artist-input', artist => addArtist(artist));
- *   dd.render(artists);   // show list
- *   dd.close();           // hide + reset active index
- *   dd.isOpen();          // → boolean
- *   // Wire up keydown on the input:
+ *   dd.showSkeleton();       // show shimmer rows while search is in flight
+ *   dd.hideSkeleton();       // close without results (error / empty)
+ *   dd.render(artists);      // replace skeleton with real results
+ *   dd.close();              // hide + reset
+ *   dd.isOpen();             // → boolean
  *   input.addEventListener('keydown', e => dd.handleKeydown(e));
  */
 export class SearchDropdown {
@@ -19,14 +21,31 @@ export class SearchDropdown {
   #input;
   #onSelect;
   #activeIndex = -1;
+  #skeleton;
 
-  constructor(containerId, inputId, onSelect) {
+  constructor(containerId, inputId, onSelect, { skeletonCount = 3 } = {}) {
     this.#container = document.getElementById(containerId);
     this.#input     = document.getElementById(inputId);
     this.#onSelect  = onSelect;
+    this.#skeleton  = new SkeletonLoader(this.#container, { count: skeletonCount });
+  }
+
+  showSkeleton() {
+    this.#activeIndex = -1;
+    this.#input.removeAttribute('aria-activedescendant');
+    this.#skeleton.show();
+    this.#input.setAttribute('aria-expanded', 'true');
+  }
+
+  hideSkeleton() {
+    this.#skeleton.hide();
+    this.#input.setAttribute('aria-expanded', 'false');
+    this.#activeIndex = -1;
+    this.#input.removeAttribute('aria-activedescendant');
   }
 
   render(artists) {
+    this.#skeleton.hide();
     this.#activeIndex = -1;
     this.#container.innerHTML = '';
 

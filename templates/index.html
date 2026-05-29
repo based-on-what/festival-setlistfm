@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/tokens.css" />
   <link rel="stylesheet" href="/static/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0/index.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0/default.css">
@@ -16,8 +17,13 @@
 <body>
   <div class="app">
     <header class="header">
-      <h1 class="logo">🎪 Festival Setlist Creator</h1>
-      <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">☾/☀</button>
+      <h1 class="logo">Festival Setlist Creator</h1>
+      <button
+        id="theme-toggle"
+        class="theme-toggle"
+        aria-label="Toggle color theme"
+        aria-pressed="false"
+      >☾/☀</button>
     </header>
 
     <main id="main-content">
@@ -36,7 +42,6 @@
             aria-autocomplete="list"
             aria-haspopup="listbox"
           />
-          <div id="search-spinner" class="spinner hidden"></div>
         </div>
         <div id="search-results" class="dropdown hidden" role="listbox" aria-label="Artist suggestions"></div>
       </section>
@@ -44,8 +49,9 @@
       <section class="card" id="artists-card">
         <h2 class="card-title">Your Festival Lineup</h2>
         <div id="empty-list-msg" class="empty-state">
-          <div class="empty-state-ring" aria-hidden="true">+</div>
+          <div class="empty-state-ring" aria-hidden="true">⠿</div>
           <p class="empty-state-text">Search above to add artists to your lineup.</p>
+          <p class="empty-state-hint">Up to 10 artists per playlist.</p>
         </div>
         <ul id="artist-list" class="artist-list" aria-label="Festival lineup" aria-live="polite"></ul>
 
@@ -103,7 +109,7 @@
 
   <footer>
     <a href="https://github.com/based-on-what/festival-setlistfm" target="_blank" rel="noopener noreferrer">
-      Festival Setlist Creator — Coded with ❤️ by @based-on-what
+      Festival Setlist Creator &mdash; Coded with love by @based-on-what
     </a>
   </footer>
 
