@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/tokens.css" />
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/tokens.css?v={{ asset_version }}" />
+  <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}" />
   <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0/index.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0/default.css">
 </head>
@@ -51,7 +51,7 @@
         <div id="empty-list-msg" class="empty-state">
           <div class="empty-state-ring" aria-hidden="true">⠿</div>
           <p class="empty-state-text">Search above to add artists to your lineup.</p>
-          <p class="empty-state-hint">Up to 10 artists per playlist.</p>
+          <p class="empty-state-hint">Up to {{ max_artists }} artists per playlist.</p>
         </div>
         <ul id="artist-list" class="artist-list" aria-label="Festival lineup" aria-live="polite"></ul>
 
@@ -114,6 +114,6 @@
   </footer>
 
   <div id="announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="/static/app.js"></script>
+  <script type="module" src="/static/app.js?v={{ asset_version }}"></script>
 </body>
 </html>

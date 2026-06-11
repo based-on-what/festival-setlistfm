@@ -26,6 +26,7 @@ const ERROR_MESSAGES = {
   no_artists:                       'Add at least one artist first.',
   too_many_artists:                 'Too many artists. Please remove some and try again.',
   no_tracks_found:                  'No tracks were found on Spotify for any of the selected artists.',
+  job_not_found:                    'The playlist job expired or was lost (e.g. server restart). Try again.',
 };
 
 function friendlyError(code, fallback) {
@@ -41,6 +42,7 @@ function friendlyError(code, fallback) {
 
 const store = new ArtistStore();
 let searchTimeout = null;
+let searchController = null;
 let dragSrcIndex  = null;
 let swapSrcIndex  = null;
 
@@ -110,9 +112,16 @@ document.addEventListener('click', (e) => {
 });
 
 async function searchArtists(q) {
+  // Cancel the in-flight request so a slow older response can't overwrite
+  // newer results.
+  searchController?.abort();
+  searchController = new AbortController();
+
   dropdown.showSkeleton();
   try {
-    const res  = await fetch(`/api/search-artist?q=${encodeURIComponent(q)}`);
+    const res  = await fetch(`/api/search-artist?q=${encodeURIComponent(q)}`, {
+      signal: searchController.signal,
+    });
     const data = await res.json();
     if (!res.ok || data.error) {
       dropdown.hideSkeleton();
@@ -120,7 +129,8 @@ async function searchArtists(q) {
       return;
     }
     dropdown.render(data.artists || []);
-  } catch {
+  } catch (err) {
+    if (err.name === 'AbortError') return; // superseded by a newer search
     dropdown.hideSkeleton();
     Toast.error('Network error. Check your connection and try again.');
   }
@@ -245,18 +255,48 @@ async function createPlaylist() {
     });
 
     const data = await res.json();
-    if (!res.ok) {
+    if (!res.ok && res.status !== 202) {
       Toast.error(friendlyError(data.error));
       return;
     }
-    showResult(data);
-  } catch {
-    Toast.error('Network error. Check your connection and try again.');
+    // 202 + job_id: poll until done. Plain 200 kept as fallback shape.
+    const result = data.job_id ? await pollJob(data.job_id) : data;
+    showResult(result);
+  } catch (err) {
+    if (err?.errorCode !== undefined) {
+      Toast.error(friendlyError(err.errorCode));
+    } else {
+      Toast.error('Network error. Check your connection and try again.');
+    }
   } finally {
     createBtn.disabled = false;
     createBtn.removeAttribute('aria-busy');
     createLabel.textContent = 'Create Festival Setlist';
     createSpinner.classList.add('hidden');
+  }
+}
+
+const POLL_INTERVAL_MS = 2000;
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Polls /api/playlist-status until the job finishes. Resolves with the build
+// result; rejects with { errorCode } on job failure.
+async function pollJob(jobId) {
+  for (;;) {
+    await sleep(POLL_INTERVAL_MS);
+    const res  = await fetch(`/api/playlist-status/${jobId}`);
+    const data = await res.json();
+    if (!res.ok || data.state === 'error') {
+      throw { errorCode: data.error };
+    }
+    if (data.state === 'done') return data.result;
+    const p = data.progress;
+    if (p?.total) {
+      createLabel.textContent = `Building playlist… ${p.completed}/${p.total} artists`;
+    }
   }
 }
 
@@ -272,8 +312,17 @@ function showResult(data) {
 
   const noSetlist = (data.artists || []).filter(a => a.status === 'no_setlist');
   const noTracks  = (data.artists || []).filter(a => a.status === 'no_tracks');
+  const timedOut  = (data.artists || []).filter(a => a.status === 'timeout');
   const missing   = (data.artists || []).filter(a => a.missing?.length > 0);
   const warnings  = [];
+
+  if (timedOut.length) {
+    warnings.push(`
+      <div class="warning-row">
+        <span class="warning-artist">⏱ Ran out of time processing:</span>
+        <span class="warning-songs">${timedOut.map(a => escapeHtml(a.name)).join(', ')}</span>
+      </div>`);
+  }
 
   if (noSetlist.length) {
     warnings.push(`
@@ -328,6 +377,9 @@ function showResult(data) {
     } else if (a.status === 'no_tracks') {
       statusClass = 'status-warn';
       statusText  = 'Setlist found, no tracks on Spotify';
+    } else if (a.status === 'timeout') {
+      statusClass = 'status-warn';
+      statusText  = 'Timed out';
     } else {
       statusClass = 'status-warn';
       statusText  = 'No recent setlist';

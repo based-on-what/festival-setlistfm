@@ -26,6 +26,7 @@ Build a Spotify playlist from the most recent setlists of your favorite festival
 | `SPOTIPY_REFRESH_TOKEN` | Yes | Long-lived Spotify refresh token (see below) |
 | `SETLISTFM_API_KEY` | Yes | setlist.fm API key |
 | `PORT` | No | Server port (default: `3000`) |
+| `RATELIMIT_STORAGE_URI` | No | Storage URI for shared rate-limit counters, e.g. a Redis URI (default: `memory://`, per-worker counters) |
 
 ---
 
@@ -84,7 +85,8 @@ Returns artists matching the query from setlist.fm.
       "name": "Artist Name",
       "sortName": "Name, Artist",
       "disambiguation": "band era or type",
-      "url": "https://www.setlist.fm/..."
+      "url": "https://www.setlist.fm/...",
+      "image": null
     }
   ]
 }
@@ -92,7 +94,7 @@ Returns artists matching the query from setlist.fm.
 
 ### `POST /api/create-playlist`
 
-Fetches setlists, resolves tracks, and creates a Spotify playlist.
+Queues an asynchronous job that fetches setlists, resolves tracks, and creates a Spotify playlist.
 
 **Rate limit:** 5 requests/minute.
 
@@ -107,13 +109,39 @@ Fetches setlists, resolves tracks, and creates a Spotify playlist.
 }
 ```
 
+**Response:** `202 Accepted`
+
+```json
+{ "job_id": "f3a1c9..." }
+```
+
+Validation errors (`no_artists`, `too_many_artists`) are returned synchronously as `400 {"error": "..."}`. Otherwise the work runs in the background — poll the status endpoint below with the returned `job_id`.
+
+> Jobs live in process memory: they don't survive restarts and finished jobs are purged after 10 minutes.
+
+### `GET /api/playlist-status/<job_id>`
+
+Returns the state of a playlist job. Exempt from rate limiting (designed for polling, e.g. every 2 seconds).
+
 **Response:**
+
+```json
+{
+  "state": "running | done | error",
+  "progress": { "completed": 3, "total": 10 },
+  "result": null,
+  "error": null
+}
+```
+
+When `state` is `done`, `result` contains the final payload:
 
 ```json
 {
   "playlist_url": "https://open.spotify.com/playlist/...",
   "playlist_id": "...",
   "total_tracks": 150,
+  "duplicates_removed": 2,
   "failed_chunks": 0,
   "artists": [
     { "name": "Artist", "status": "ok", "tracks": 25, "missing": [] }
@@ -121,7 +149,9 @@ Fetches setlists, resolves tracks, and creates a Spotify playlist.
 }
 ```
 
-Artist `status` values: `ok`, `no_tracks`, `no_setlist`.
+Artist `status` values: `ok`, `no_tracks`, `no_setlist`, `timeout` (the artist didn't finish within the build deadline; the playlist is created with whatever resolved in time).
+
+When `state` is `error`, `error` carries the error code (e.g. `no_tracks_found`, `setlistfm_rate_limited`) and `result` may include per-artist `details`. An unknown job id returns `404 {"error": "job_not_found"}`.
 
 ---
 
@@ -148,4 +178,4 @@ Artist `status` values: `ok`, `no_tracks`, `no_setlist`.
 - **APIs:** Spotify Web API, setlist.fm API v1
 - **Frontend:** Vanilla JS, Space Mono font, mobile-drag-drop (CDN)
 - **Concurrency:** `ThreadPoolExecutor` (32 workers) for parallel artist/track resolution
-- **Caching:** In-memory TTL cache (1 hour) for setlist.fm responses
+- **Caching:** In-memory TTL caches — setlist.fm responses (1 hour) and Spotify track searches (24 hours)

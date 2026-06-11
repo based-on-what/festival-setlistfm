@@ -1,27 +1,50 @@
 import logging
+import threading
+import time
 from typing import Optional
 
 import requests
 
+import errors
 from config import Config, SETLISTFM_API_BASE
 from infrastructure.cache import TTLCache
 
 log = logging.getLogger(__name__)
 
 
+class _Throttle:
+    """Process-wide pacing: each acquire() reserves the next free slot so
+    concurrent callers queue at `rate` requests/sec instead of bursting."""
+
+    def __init__(self, rate: float):
+        self._interval  = 1.0 / rate
+        self._lock      = threading.Lock()
+        self._next_free = 0.0
+
+    def acquire(self) -> None:
+        with self._lock:
+            now  = time.monotonic()
+            wait = max(0.0, self._next_free - now)
+            self._next_free = max(now, self._next_free) + self._interval
+        if wait > 0:
+            time.sleep(wait)
+
+
 class SetlistFMClient:
     def __init__(self, config: Config, session: requests.Session, cache: TTLCache):
-        self._config  = config
-        self._session = session
-        self._cache   = cache
+        self._config   = config
+        self._session  = session
+        self._cache    = cache
+        self._throttle = _Throttle(config.setlistfm_rate_per_sec)
 
     def _headers(self) -> dict:
         return {"x-api-key": self._config.setlistfm_api_key, "Accept": "application/json"}
 
     def search_artists(self, q: str) -> tuple[list[dict], Optional[str]]:
         if not self._config.setlistfm_api_key:
-            return [], "setlistfm_not_configured"
+            return [], errors.SETLISTFM_NOT_CONFIGURED
 
+        self._throttle.acquire()
         try:
             resp = self._session.get(
                 f"{SETLISTFM_API_BASE}/search/artists",
@@ -30,18 +53,18 @@ class SetlistFMClient:
                 timeout=6,
             )
         except requests.Timeout:
-            return [], "setlistfm_timeout"
+            return [], errors.SETLISTFM_TIMEOUT
         except requests.ConnectionError:
-            return [], "setlistfm_connection_error"
+            return [], errors.SETLISTFM_CONNECTION_ERROR
 
         if resp.status_code == 401:
-            return [], "setlistfm_api_key_invalid"
+            return [], errors.SETLISTFM_API_KEY_INVALID
         if resp.status_code == 404:
             return [], None
         if resp.status_code == 429:
-            return [], "setlistfm_rate_limited"
+            return [], errors.SETLISTFM_RATE_LIMITED
         if not resp.ok:
-            return [], f"setlistfm_http_{resp.status_code}"
+            return [], f"{errors.SETLISTFM_HTTP_PREFIX}{resp.status_code}"
 
         artists = [
             {
@@ -61,7 +84,7 @@ class SetlistFMClient:
         self, mbid: Optional[str], artist_name: str, include_taped: bool
     ) -> tuple[Optional[list], Optional[str]]:
         if not self._config.setlistfm_api_key:
-            return None, "setlistfm_not_configured"
+            return None, errors.SETLISTFM_NOT_CONFIGURED
 
         cache_key = (mbid or artist_name, include_taped)
         cached = self._cache.get(cache_key)
@@ -74,19 +97,20 @@ class SetlistFMClient:
             url, base_params = f"{SETLISTFM_API_BASE}/search/setlists", {"artistName": artist_name}
 
         for page in range(1, 6):
+            self._throttle.acquire()
             try:
                 resp = self._session.get(
                     url, headers=self._headers(), params={**base_params, "p": page}, timeout=8
                 )
             except requests.Timeout:
-                return None, "setlistfm_timeout"
+                return None, errors.SETLISTFM_TIMEOUT
             except requests.ConnectionError:
-                return None, "setlistfm_connection_error"
+                return None, errors.SETLISTFM_CONNECTION_ERROR
 
             if resp.status_code in (401, 403):
-                return None, "setlistfm_api_key_invalid"
+                return None, errors.SETLISTFM_API_KEY_INVALID
             if resp.status_code == 429:
-                return None, "setlistfm_rate_limited"
+                return None, errors.SETLISTFM_RATE_LIMITED
             if resp.status_code == 404 or not resp.ok:
                 return None, None
 

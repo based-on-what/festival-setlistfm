@@ -1,0 +1,11 @@
+.claude/
+.codegraph/
+.gitnexus/
+.superpowers/
+docs/
+venv/
+*.cache
+.cache
+AGENTS.md
+CLAUDE.md
+.pytest_cache/
