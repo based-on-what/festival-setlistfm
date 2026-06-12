@@ -1,7 +1,7 @@
 import { escapeHtml } from './utils.js';
 
 /**
- * createArtistItem — factory for a draggable artist list item.
+ * createArtistItem — factory for a draggable lineup (bill) row.
  *
  * Returns a <li> element. Drag event handlers are attached by the caller
  * (app.js) via attachDragHandlers(), since they need access to store state.
@@ -10,7 +10,7 @@ import { escapeHtml } from './utils.js';
  *   data-action="remove" data-id="..."   → remove artist
  *   data-action="swap"   data-index="N"  → mobile swap-reorder
  *
- * @param {object} artist          - { id, name, imageUrl? }
+ * @param {object} artist          - { id, name }
  * @param {number} index           - position in list (for data-index)
  * @param {object} [opts]
  * @param {boolean} [opts.isSwapSelected=false]
@@ -22,20 +22,15 @@ export function createArtistItem(artist, index, { isSwapSelected = false } = {})
   li.draggable = true;
 
   const handleClass = `drag-handle${isSwapSelected ? ' swap-selected' : ''}`;
+  const billNumber = String(index + 1).padStart(2, '0');
 
   li.innerHTML = `
+    <span class="artist-item-index" aria-hidden="true">${billNumber}</span>
+    <span class="artist-item-name"></span>
     <span class="${handleClass}"
           data-action="swap" data-index="${index}"
           role="button" tabindex="0"
           aria-label="Drag to reorder, or tap to swap position">⠿</span>
-    ${artist.imageUrl
-      ? `<img class="artist-item-thumb"
-              src="${escapeHtml(artist.imageUrl)}"
-              alt=""
-              loading="lazy">`
-      : `<div class="artist-item-thumb-placeholder" aria-hidden="true">🎤</div>`
-    }
-    <span class="artist-item-name"></span>
     <button class="remove-btn"
             data-action="remove"
             data-id="${escapeHtml(String(artist.id))}">✕</button>

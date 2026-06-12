@@ -1,4 +1,3 @@
-import { escapeHtml }    from './utils.js';
 import { SkeletonLoader } from './skeleton.js';
 
 /**
@@ -50,7 +49,11 @@ export class SearchDropdown {
     this.#container.innerHTML = '';
 
     if (!artists.length) {
-      this.close();
+      const empty = document.createElement('div');
+      empty.className = 'dropdown-empty';
+      empty.textContent = 'No artists found. Check the spelling and try again.';
+      this.#container.appendChild(empty);
+      this.open();
       return;
     }
 
@@ -64,20 +67,13 @@ export class SearchDropdown {
       item.setAttribute('aria-selected', 'false');
       item.tabIndex = -1;
 
-      const thumbHtml = artist.imageUrl
-        ? `<img class="dropdown-thumb" src="${escapeHtml(artist.imageUrl)}" alt="" loading="lazy">`
-        : `<div class="dropdown-thumb-placeholder" aria-hidden="true">🎤</div>`;
-
       const metaHtml = artist.disambiguation
         ? `<span class="dropdown-meta"></span>`
         : '';
 
       item.innerHTML = `
-        ${thumbHtml}
-        <div class="dropdown-info">
-          <span class="dropdown-name"></span>
-          ${metaHtml}
-        </div>`;
+        <span class="dropdown-name"></span>
+        ${metaHtml}`;
 
       item.querySelector('.dropdown-name').textContent = artist.name;
       if (artist.disambiguation) {
@@ -114,13 +110,14 @@ export class SearchDropdown {
 
   handleKeydown(e) {
     if (!this.isOpen()) return;
+    if (e.key === 'Escape') {
+      this.close();
+      return;
+    }
     const items = [...this.#container.querySelectorAll('[role="option"]')];
     if (!items.length) return;
 
     switch (e.key) {
-      case 'Escape':
-        this.close();
-        break;
       case 'ArrowDown':
         e.preventDefault();
         this.#activeIndex = Math.min(this.#activeIndex + 1, items.length - 1);

@@ -39,20 +39,13 @@ export class SkeletonLoader {
     item.className = 'skeleton-item';
     item.setAttribute('aria-hidden', 'true');
 
-    const avatar = document.createElement('div');
-    avatar.className = 'skeleton-pulse skeleton-avatar';
-
-    const text = document.createElement('div');
-    text.className = 'skeleton-text';
-
     const name = document.createElement('div');
     name.className = 'skeleton-pulse skeleton-name';
 
     const meta = document.createElement('div');
     meta.className = 'skeleton-pulse skeleton-meta';
 
-    text.append(name, meta);
-    item.append(avatar, text);
+    item.append(name, meta);
     return item;
   }
 }

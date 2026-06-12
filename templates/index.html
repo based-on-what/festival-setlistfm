@@ -8,7 +8,7 @@
   <title>Festival Setlist Creator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/tokens.css?v={{ asset_version }}" />
   <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}" />
   <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0/index.min.js"></script>
@@ -16,8 +16,11 @@
 </head>
 <body>
   <div class="app">
-    <header class="header">
-      <h1 class="logo">Festival Setlist Creator</h1>
+    <header class="masthead">
+      <div class="masthead-text">
+        <p class="masthead-kicker">Live setlists &rarr; Spotify playlist</p>
+        <h1 class="masthead-title">Festival Setlist</h1>
+      </div>
       <button
         id="theme-toggle"
         class="theme-toggle"
@@ -27,89 +30,105 @@
     </header>
 
     <main id="main-content">
-      <section class="card">
-        <h2 class="card-title">Search Artists</h2>
-        <div class="search-box">
-          <input
-            type="text"
-            id="artist-input"
-            class="input"
-            placeholder="Artist name..."
-            autocomplete="off"
-            role="combobox"
-            aria-expanded="false"
-            aria-controls="search-results"
-            aria-autocomplete="list"
-            aria-haspopup="listbox"
-          />
-        </div>
-        <div id="search-results" class="dropdown hidden" role="listbox" aria-label="Artist suggestions"></div>
-      </section>
+      <div class="layout" id="builder">
+        <aside class="rail">
+          <section class="rail-block rail-search" aria-labelledby="search-heading">
+            <h2 class="rail-heading" id="search-heading">Add artists</h2>
+            <div class="search-box">
+              <input
+                type="text"
+                id="artist-input"
+                class="input"
+                placeholder="Search artist name…"
+                autocomplete="off"
+                role="combobox"
+                aria-expanded="false"
+                aria-controls="search-results"
+                aria-autocomplete="list"
+                aria-haspopup="listbox"
+                aria-labelledby="search-heading"
+              />
+              <div id="search-results" class="dropdown hidden" role="listbox" aria-label="Artist suggestions"></div>
+            </div>
+            <p class="rail-hint">Pulls each artist&rsquo;s most recent real setlist from setlist.fm.</p>
+          </section>
 
-      <section class="card" id="artists-card">
-        <h2 class="card-title">Your Festival Lineup</h2>
-        <div id="empty-list-msg" class="empty-state">
-          <div class="empty-state-ring" aria-hidden="true">⠿</div>
-          <p class="empty-state-text">Search above to add artists to your lineup.</p>
-          <p class="empty-state-hint">Up to {{ max_artists }} artists per playlist.</p>
-        </div>
-        <ul id="artist-list" class="artist-list" aria-label="Festival lineup" aria-live="polite"></ul>
+          <section class="rail-block hidden" id="options-group" aria-labelledby="options-heading">
+            <h2 class="rail-heading" id="options-heading">Options</h2>
+            <label class="option-label">
+              <input type="checkbox" id="opt-prefer-original" checked />
+              <span>
+                <strong>Prefer original recording</strong>
+                <span class="option-hint">When an artist plays a cover, save the original version. Falls back to the live cover if not on Spotify.</span>
+              </span>
+            </label>
+            <label class="option-label">
+              <input type="checkbox" id="opt-include-taped" />
+              <span>
+                <strong>Include taped / backing tracks</strong>
+                <span class="option-hint">Songs played from a recording rather than performed live.</span>
+              </span>
+            </label>
+            <div class="playlist-name-group">
+              <label class="playlist-name-label" for="playlist-name-input">Playlist name <span class="option-hint">(optional)</span></label>
+              <input
+                type="text"
+                id="playlist-name-input"
+                class="input"
+                autocomplete="off"
+                maxlength="100"
+              />
+            </div>
+          </section>
+        </aside>
 
-        <!-- ── Playlist options ── -->
-        <div class="options-group hidden" id="options-group">
-          <label class="option-label">
-            <input type="checkbox" id="opt-prefer-original" checked />
-            <span>
-              <strong>Prefer original recording</strong>
-              <span class="option-hint">When an artist plays a cover, save the original version. If not found on Spotify, falls back to the cover by the performing artist.</span>
-            </span>
-          </label>
-          <label class="option-label">
-            <input type="checkbox" id="opt-include-taped" />
-            <span>
-              <strong>Include taped / backing tracks</strong>
-              <span class="option-hint">Include songs played from a recording (not performed live), whether by the artist or not.</span>
-            </span>
-          </label>
+        <section class="bill" id="artists-card" aria-labelledby="bill-heading">
+          <header class="bill-header">
+            <h2 class="bill-heading" id="bill-heading">The Bill</h2>
+            <span class="bill-count" id="lineup-count" data-max="{{ max_artists }}" aria-label="Lineup size">0/{{ max_artists }}</span>
+          </header>
 
-          <!-- ── Playlist name ── -->
-          <div class="playlist-name-group">
-            <label class="playlist-name-label" for="playlist-name-input">Playlist name <span class="option-hint">(optional)</span></label>
-            <input
-              type="text"
-              id="playlist-name-input"
-              class="input"
-              autocomplete="off"
-              maxlength="100"
-            />
+          <div id="empty-list-msg" class="empty-bill">
+            <ol class="empty-bill-slots" aria-hidden="true">
+              <li><span>01</span><span class="empty-slot-line"></span></li>
+              <li><span>02</span><span class="empty-slot-line"></span></li>
+              <li><span>03</span><span class="empty-slot-line"></span></li>
+            </ol>
+            <p class="empty-bill-text">Your lineup prints here. Search for an artist to add the first name.</p>
+            <p class="empty-bill-hint">Up to {{ max_artists }} artists. Drag to set the running order.</p>
           </div>
-        </div>
 
-        <button id="create-btn" class="btn btn-primary btn-full hidden">
-          <span id="create-label">Create Festival Setlist</span>
-          <span id="create-spinner" class="spinner hidden"></span>
-        </button>
-      </section>
+          <ol id="artist-list" class="artist-list" aria-label="Festival lineup" aria-live="polite"></ol>
 
-      <section class="card hidden" id="result-card">
-        <h2 class="card-title">Your Playlist is Ready!</h2>
+          <button id="create-btn" class="btn btn-primary btn-create hidden">
+            <span id="create-label">Create the playlist</span>
+            <span id="create-spinner" class="spinner hidden" aria-hidden="true"></span>
+            <span class="btn-create-arrow" aria-hidden="true">&rarr;</span>
+          </button>
+        </section>
+      </div>
 
-        <!-- ── Missing tracks warning ── -->
+      <section class="result hidden" id="result-card" aria-labelledby="result-heading">
+        <header class="result-header">
+          <p class="result-kicker">Printed &amp; ready</p>
+          <h2 class="result-heading" id="result-heading">Your playlist is live</h2>
+        </header>
+
         <div id="warning-box" class="warning-box hidden"></div>
 
         <div id="artist-summary" class="summary-list"></div>
-        <a id="playlist-link" href="#" target="_blank" class="btn btn-spotify">
-          Open in Spotify
+        <a id="playlist-link" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-create">
+          Open in Spotify <span class="btn-create-arrow" aria-hidden="true">&rarr;</span>
         </a>
         <div id="player-wrap" class="player-wrap"></div>
-        <button id="reset-btn" class="btn btn-ghost btn-full">Create Another</button>
+        <button id="reset-btn" class="btn btn-ghost btn-full">Create another</button>
       </section>
     </main>
   </div>
 
   <footer>
     <a href="https://github.com/based-on-what/festival-setlistfm" target="_blank" rel="noopener noreferrer">
-      Festival Setlist Creator &mdash; Coded with love by @based-on-what
+      Festival Setlist Creator &mdash; coded with love by @based-on-what
     </a>
   </footer>
 

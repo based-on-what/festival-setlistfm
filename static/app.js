@@ -56,6 +56,9 @@ const createLabel   = document.getElementById('create-label');
 const createSpinner = document.getElementById('create-spinner');
 const optionsGroup  = document.getElementById('options-group');
 const announcer     = document.getElementById('announcer');
+const builderEl     = document.getElementById('builder');
+const lineupCount   = document.getElementById('lineup-count');
+const maxArtists    = parseInt(lineupCount.dataset.max, 10);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -143,6 +146,7 @@ store.addEventListener('change', renderArtistList);
 function renderArtistList() {
   const artists = store.artists;
   artistListEl.innerHTML = '';
+  lineupCount.textContent = `${artists.length}/${maxArtists}`;
 
   if (!artists.length) {
     emptyMsg.classList.remove('hidden');
@@ -271,7 +275,7 @@ async function createPlaylist() {
   } finally {
     createBtn.disabled = false;
     createBtn.removeAttribute('aria-busy');
-    createLabel.textContent = 'Create Festival Setlist';
+    createLabel.textContent = 'Create the playlist';
     createSpinner.classList.add('hidden');
   }
 }
@@ -303,9 +307,10 @@ async function pollJob(jobId) {
 // ── Result display ────────────────────────────────────────────────────────────
 
 function showResult(data) {
-  document.getElementById('artists-card').classList.add('hidden');
+  builderEl.classList.add('hidden');
   document.getElementById('result-card').classList.remove('hidden');
   document.getElementById('playlist-link').href = data.playlist_url;
+  announce('Playlist ready');
 
   const warningBox = document.getElementById('warning-box');
   warningBox.innerHTML = '';
@@ -414,7 +419,7 @@ function resetResult() {
   swapSrcIndex = null;
   document.getElementById('playlist-name-input').value = '';
   document.getElementById('result-card').classList.add('hidden');
-  document.getElementById('artists-card').classList.remove('hidden');
+  builderEl.classList.remove('hidden');
   document.getElementById('player-wrap').innerHTML = '';
   document.getElementById('warning-box').classList.add('hidden');
 }
