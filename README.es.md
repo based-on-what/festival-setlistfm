@@ -5,7 +5,7 @@ Crea una playlist de Spotify con los setlists mas recientes de tus artistas favo
 ## Como funciona
 
 1. Busca artistas — la app consulta la base de datos de setlist.fm con autocompletado.
-2. Agrega hasta 20 artistas a tu Festival Lineup. Arrastra y suelta (o usa el boton de intercambio en movil) para reordenarlos.
+2. Agrega hasta 100 artistas a tu Festival Lineup. Arrastra y suelta (o usa el boton de intercambio en movil) para reordenarlos.
 3. Configura las opciones de la playlist:
    - **Preferir grabacion original** — cuando un artista toca un cover, intenta encontrar primero la version del artista original en Spotify.
    - **Incluir tracks de fondo/grabados** — incluye canciones reproducidas desde grabaciones en lugar de tocadas en vivo.

@@ -70,15 +70,18 @@ function announce(msg) {
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
 (function initTheme() {
-  const btn   = document.getElementById('theme-toggle');
-  const saved = localStorage.getItem('festival-theme') || 'dark';
-  document.documentElement.setAttribute('data-theme', saved);
-  btn.setAttribute('aria-pressed', String(saved === 'light'));
+  const btn = document.getElementById('theme-toggle');
+  // Label shows the theme the button switches TO, ticket-stub style.
+  const apply = (theme) => {
+    document.documentElement.setAttribute('data-theme', theme);
+    btn.setAttribute('aria-pressed', String(theme === 'light'));
+    btn.textContent = theme === 'dark' ? 'Day' : 'Night';
+  };
+  apply(localStorage.getItem('festival-theme') || 'dark');
   btn.addEventListener('click', () => {
     const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('festival-theme', next);
-    btn.setAttribute('aria-pressed', String(next === 'light'));
+    apply(next);
   });
 })();
 

@@ -12,7 +12,7 @@ class Config:
     spotify_client_secret: str
     spotify_refresh_token: str
     setlistfm_api_key: str
-    max_artists: int = 20
+    max_artists: int = 100
     setlist_cache_ttl: int = 3600
     thread_pool_workers: int = 32
     setlistfm_rate_per_sec: float = 2.0
