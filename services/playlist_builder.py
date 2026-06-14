@@ -11,7 +11,7 @@ from services.track_resolver import TrackResolver
 
 log = logging.getLogger(__name__)
 
-_DESCRIPTION = "Created by Festival SetlistFM Creator – https://github.com/based-on-what/festival-setlistfm"
+_DESCRIPTION = "Created by Festival SetlistFM Creator – https://festival-setlistfm.up.railway.app/"
 
 
 class PlaylistBuilder:

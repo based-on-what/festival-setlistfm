@@ -41,8 +41,11 @@ function friendlyError(code, fallback) {
 // ── State ─────────────────────────────────────────────────────────────────────
 
 const store = new ArtistStore();
-let searchTimeout = null;
-let searchController = null;
+let searchTimeout      = null;
+let searchController   = null;
+let loadMoreController = null;
+let currentSearchQuery = '';
+let currentSearchPage  = 1;
 let dragSrcIndex  = null;
 let swapSrcIndex  = null;
 
@@ -117,27 +120,43 @@ document.addEventListener('click', (e) => {
   }
 });
 
-async function searchArtists(q) {
-  // Cancel the in-flight request so a slow older response can't overwrite
-  // newer results.
-  searchController?.abort();
-  searchController = new AbortController();
+async function searchArtists(q, page = 1) {
+  if (page === 1) {
+    searchController?.abort();
+    loadMoreController?.abort();
+    searchController   = new AbortController();
+    currentSearchQuery = q;
+    currentSearchPage  = 1;
+    dropdown.showSkeleton();
+  } else {
+    loadMoreController?.abort();
+    loadMoreController = new AbortController();
+    dropdown.setLoadMoreLoading(true);
+  }
 
-  dropdown.showSkeleton();
+  const controller = page === 1 ? searchController : loadMoreController;
+
   try {
-    const res  = await fetch(`/api/search-artist?q=${encodeURIComponent(q)}`, {
-      signal: searchController.signal,
+    const res  = await fetch(`/api/search-artist?q=${encodeURIComponent(q)}&p=${page}`, {
+      signal: controller.signal,
     });
     const data = await res.json();
     if (!res.ok || data.error) {
-      dropdown.hideSkeleton();
+      if (page === 1) dropdown.hideSkeleton();
+      else dropdown.setLoadMoreLoading(false);
       Toast.error(friendlyError(data.error, 'Artist search failed. Try again.'));
       return;
     }
-    dropdown.render(data.artists || []);
+    currentSearchPage = page;
+    dropdown.render(data.artists || [], {
+      append:     page > 1,
+      hasMore:    data.has_more,
+      onLoadMore: () => searchArtists(currentSearchQuery, currentSearchPage + 1),
+    });
   } catch (err) {
-    if (err.name === 'AbortError') return; // superseded by a newer search
-    dropdown.hideSkeleton();
+    if (err.name === 'AbortError') return;
+    if (page === 1) dropdown.hideSkeleton();
+    else dropdown.setLoadMoreLoading(false);
     Toast.error('Network error. Check your connection and try again.');
   }
 }

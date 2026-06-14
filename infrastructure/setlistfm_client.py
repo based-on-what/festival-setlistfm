@@ -40,32 +40,33 @@ class SetlistFMClient:
     def _headers(self) -> dict:
         return {"x-api-key": self._config.setlistfm_api_key, "Accept": "application/json"}
 
-    def search_artists(self, q: str) -> tuple[list[dict], Optional[str]]:
+    def search_artists(self, q: str, page: int = 1) -> tuple[list[dict], Optional[str], bool]:
         if not self._config.setlistfm_api_key:
-            return [], errors.SETLISTFM_NOT_CONFIGURED
+            return [], errors.SETLISTFM_NOT_CONFIGURED, False
 
         self._throttle.acquire()
         try:
             resp = self._session.get(
                 f"{SETLISTFM_API_BASE}/search/artists",
                 headers=self._headers(),
-                params={"artistName": q, "sort": "relevance", "p": 1},
+                params={"artistName": q, "sort": "relevance", "p": page},
                 timeout=6,
             )
         except requests.Timeout:
-            return [], errors.SETLISTFM_TIMEOUT
+            return [], errors.SETLISTFM_TIMEOUT, False
         except requests.ConnectionError:
-            return [], errors.SETLISTFM_CONNECTION_ERROR
+            return [], errors.SETLISTFM_CONNECTION_ERROR, False
 
         if resp.status_code == 401:
-            return [], errors.SETLISTFM_API_KEY_INVALID
+            return [], errors.SETLISTFM_API_KEY_INVALID, False
         if resp.status_code == 404:
-            return [], None
+            return [], None, False
         if resp.status_code == 429:
-            return [], errors.SETLISTFM_RATE_LIMITED
+            return [], errors.SETLISTFM_RATE_LIMITED, False
         if not resp.ok:
-            return [], f"{errors.SETLISTFM_HTTP_PREFIX}{resp.status_code}"
+            return [], f"{errors.SETLISTFM_HTTP_PREFIX}{resp.status_code}", False
 
+        data = resp.json()
         artists = [
             {
                 "id":             a.get("mbid", a.get("name")),
@@ -76,9 +77,12 @@ class SetlistFMClient:
                 "url":            a.get("url", ""),
                 "image":          None,
             }
-            for a in resp.json().get("artist", [])[:8]
+            for a in data.get("artist", [])
         ]
-        return artists, None
+        total          = data.get("total", 0)
+        items_per_page = data.get("itemsPerPage", 20)
+        has_more       = page * items_per_page < total
+        return artists, None, has_more
 
     def get_recent_setlist(
         self, mbid: Optional[str], artist_name: str, include_taped: bool

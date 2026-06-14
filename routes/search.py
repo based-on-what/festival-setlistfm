@@ -12,9 +12,14 @@ def create_search_blueprint(setlistfm: SetlistFMClient, limiter) -> Blueprint:
     def search_artist():
         q = request.args.get("q", "").strip()
         if not q:
-            return jsonify({"artists": []})
+            return jsonify({"artists": [], "has_more": False})
 
-        artists, err = setlistfm.search_artists(q)
+        try:
+            page = max(1, min(int(request.args.get("p", "1")), 10))
+        except ValueError:
+            page = 1
+
+        artists, err, has_more = setlistfm.search_artists(q, page)
 
         if err == errors.SETLISTFM_NOT_CONFIGURED:
             return jsonify({"error": err}), 503
@@ -24,6 +29,6 @@ def create_search_blueprint(setlistfm: SetlistFMClient, limiter) -> Blueprint:
             status = 504 if "timeout" in err else 502
             return jsonify({"error": err}), status
 
-        return jsonify({"artists": artists})
+        return jsonify({"artists": artists, "has_more": has_more})
 
     return bp

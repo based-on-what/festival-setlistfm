@@ -197,6 +197,24 @@ body {
   text-align: center;
 }
 
+.dropdown-load-more {
+  display: block;
+  width: 100%;
+  padding: 8px var(--space-3);
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-align: center;
+  transition: background var(--t-fast);
+}
+
+.dropdown-load-more:hover:not(:disabled) { background: var(--accent-subtle); }
+.dropdown-load-more:disabled { color: var(--muted); cursor: default; }
+
 /* ── Skeleton loader ─────────────────────────────────────────────────────── */
 
 @keyframes shimmer {

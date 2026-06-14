@@ -21,6 +21,7 @@ export class SearchDropdown {
   #onSelect;
   #activeIndex = -1;
   #skeleton;
+  #loadMoreBtn = null;
 
   constructor(containerId, inputId, onSelect, { skeletonCount = 3 } = {}) {
     this.#container = document.getElementById(containerId);
@@ -43,12 +44,19 @@ export class SearchDropdown {
     this.#input.removeAttribute('aria-activedescendant');
   }
 
-  render(artists) {
+  render(artists, { append = false, hasMore = false, onLoadMore = null } = {}) {
     this.#skeleton.hide();
     this.#activeIndex = -1;
-    this.#container.innerHTML = '';
 
-    if (!artists.length) {
+    if (!append) {
+      this.#container.innerHTML = '';
+      this.#loadMoreBtn = null;
+    } else {
+      this.#loadMoreBtn?.remove();
+      this.#loadMoreBtn = null;
+    }
+
+    if (artists.length === 0 && !append) {
       const empty = document.createElement('div');
       empty.className = 'dropdown-empty';
       empty.textContent = 'No artists found. Check the spelling and try again.';
@@ -57,13 +65,14 @@ export class SearchDropdown {
       return;
     }
 
-    const frag = document.createDocumentFragment();
+    const frag   = document.createDocumentFragment();
+    const offset = this.#container.querySelectorAll('[role="option"]').length;
 
     artists.forEach((artist, i) => {
       const item = document.createElement('div');
       item.className = 'dropdown-item';
       item.setAttribute('role', 'option');
-      item.setAttribute('id', `option-${i}`);
+      item.setAttribute('id', `option-${offset + i}`);
       item.setAttribute('aria-selected', 'false');
       item.tabIndex = -1;
 
@@ -89,7 +98,26 @@ export class SearchDropdown {
     });
 
     this.#container.appendChild(frag);
+
+    if (hasMore && onLoadMore) {
+      this.#loadMoreBtn = document.createElement('button');
+      this.#loadMoreBtn.type = 'button';
+      this.#loadMoreBtn.className = 'dropdown-load-more';
+      this.#loadMoreBtn.textContent = 'Load more results';
+      this.#loadMoreBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onLoadMore();
+      });
+      this.#container.appendChild(this.#loadMoreBtn);
+    }
+
     this.open();
+  }
+
+  setLoadMoreLoading(loading) {
+    if (!this.#loadMoreBtn) return;
+    this.#loadMoreBtn.disabled = loading;
+    this.#loadMoreBtn.textContent = loading ? 'Loading…' : 'Load more results';
   }
 
   open() {
