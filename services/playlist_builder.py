@@ -32,14 +32,15 @@ class PlaylistBuilder:
     def build(
         self,
         artists: list[dict],
-        prefer_original: bool,
-        include_taped: bool,
-        playlist_name: str,
+        prefer_original: bool = True,
+        include_taped: bool = False,
+        playlist_name: str = "",
         request_id: str = "",
         progress_cb: Optional[Callable[[int, int], None]] = None,
+        per_artist_versions: Optional[list[bool]] = None,
     ) -> dict:
         all_track_ids, artist_results = self._collect_tracks(
-            artists, prefer_original, include_taped, request_id, progress_cb
+            artists, prefer_original, include_taped, request_id, progress_cb, per_artist_versions
         )
 
         if not all_track_ids:
@@ -72,14 +73,19 @@ class PlaylistBuilder:
         self, artists: list[dict], prefer_original: bool, include_taped: bool,
         request_id: str = "",
         progress_cb: Optional[Callable[[int, int], None]] = None,
+        per_artist_versions: Optional[list[bool]] = None,
     ) -> tuple[list[str], list[dict]]:
+        
+        # Si no se envía la lista de preferencias por artista, usamos la global para todos
+        if per_artist_versions is None:
+            per_artist_versions = [prefer_original] * len(artists)
+
         futures = [
-            self._executor.submit(self._process_artist, a, prefer_original, include_taped, request_id)
-            for a in artists
+            self._executor.submit(self._process_artist, a, is_orig, include_taped, request_id)
+            for a, is_orig in zip(artists, per_artist_versions)
         ]
-        # Shared deadline: artists that miss it get status "timeout" and the
-        # playlist is built from whatever resolved, instead of letting gunicorn
-        # kill the whole request after the playlist may already exist.
+        
+        # Shared deadline
         deadline = time.monotonic() + self._deadline_seconds
         all_track_ids, artist_results = [], []
         for i, (future, artist) in enumerate(zip(futures, artists)):
