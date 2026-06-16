@@ -63,6 +63,9 @@ class SetlistFMClient:
             return [], None, False
         if resp.status_code == 429:
             return [], errors.SETLISTFM_RATE_LIMITED, False
+        if resp.status_code == 403:
+            return [], errors.SETLISTFM_RATE_LIMITED + "_daily", False
+        
         if not resp.ok:
             return [], f"{errors.SETLISTFM_HTTP_PREFIX}{resp.status_code}", False
 

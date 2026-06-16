@@ -1,6 +1,8 @@
 import logging
 import time
 import threading
+import unicodedata
+import re
 from typing import Optional
 
 import requests
@@ -10,6 +12,33 @@ from config import Config, SPOTIFY_TOKEN_URL, SPOTIFY_API_BASE
 from infrastructure.cache import TTLCache
 
 log = logging.getLogger(__name__)
+
+def _normalize_artist(name: str) -> str:
+    """Minúsculas, sin acentos ni puntuación para comparar nombres de artistas."""
+    name = unicodedata.normalize("NFD", name.lower())
+    name = "".join(c for c in name if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9\s]", "", name).strip()
+
+
+def _pick_track_for_artist(search_artist: str, items: list[dict]) -> Optional[str]:
+    """
+    Devuelve el ID del primer track cuya lista de artistas contenga search_artist.
+    Dos pasadas: primero coincidencia exacta normalizada, luego por contenido
+    para manejar variantes como 'The Beatles' ↔ 'Beatles'.
+    """
+    norm = _normalize_artist(search_artist)
+    # Pasada 1 – exacta
+    for item in items:
+        for a in item.get("artists", []):
+            if _normalize_artist(a["name"]) == norm:
+                return item["id"]
+    # Pasada 2 – leniente
+    for item in items:
+        for a in item.get("artists", []):
+            ta = _normalize_artist(a["name"])
+            if norm in ta or ta in norm:
+                return item["id"]
+    return None
 
 # Sentinel cached for "track not on Spotify" so known misses don't re-query.
 _SEARCH_MISS = object()
@@ -93,7 +122,7 @@ class SpotifyClient:
                 return None if cached is _SEARCH_MISS else cached
 
         q = f'artist:"{artist_name}" track:"{track_name}"' if artist_name else f'track:"{track_name}"'
-        params = {"q": q, "type": "track", "limit": 1}
+        params = {"q": q, "type": "track", "limit": 5 if artist_name else 1}  # ← era limit: 1
 
         def do_get():
             return self._session.get(
@@ -114,9 +143,15 @@ class SpotifyClient:
             return None
 
         items = r.json().get("tracks", {}).get("items", [])
-        tid = items[0]["id"] if items else None
-        # Only definitive answers (HTTP ok) are cached; transient errors above
-        # return early so they don't poison the cache.
+
+        # ↓ reemplaza las dos líneas originales
+        if not items:
+            tid = None
+        elif artist_name:
+            tid = _pick_track_for_artist(artist_name, items)  # valida artista
+        else:
+            tid = items[0]["id"]
+
         if self._search_cache is not None:
             self._search_cache.set(cache_key, _SEARCH_MISS if tid is None else tid)
         return tid
