@@ -122,7 +122,9 @@ class SpotifyClient:
                 return None if cached is _SEARCH_MISS else cached
 
         q = f'artist:"{artist_name}" track:"{track_name}"' if artist_name else f'track:"{track_name}"'
-        params = {"q": q, "type": "track", "limit": 5 if artist_name else 1}  # ← era limit: 1
+        # Con artista pedimos 5 candidatos para poder descartar los que Spotify
+        # devuelve de otros intérpretes; sin artista basta el primero.
+        params = {"q": q, "type": "track", "limit": 5 if artist_name else 1}
 
         def do_get():
             return self._session.get(
@@ -144,11 +146,10 @@ class SpotifyClient:
 
         items = r.json().get("tracks", {}).get("items", [])
 
-        # ↓ reemplaza las dos líneas originales
         if not items:
             tid = None
         elif artist_name:
-            tid = _pick_track_for_artist(artist_name, items)  # valida artista
+            tid = _pick_track_for_artist(artist_name, items)
         else:
             tid = items[0]["id"]
 
