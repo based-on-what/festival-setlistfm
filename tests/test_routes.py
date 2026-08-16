@@ -19,8 +19,8 @@ class FakeSetlistFM:
         self.artists = artists or []
         self.error = error
 
-    def search_artists(self, q):
-        return self.artists, self.error
+    def search_artists(self, q, page=1):
+        return self.artists, self.error, False
 
 
 class FakeBuilder:
@@ -53,7 +53,7 @@ def test_search_empty_query_returns_empty_list():
     client = make_client()
     resp = client.get("/api/search-artist?q=")
     assert resp.status_code == 200
-    assert resp.get_json() == {"artists": []}
+    assert resp.get_json() == {"artists": [], "has_more": False}
 
 
 def test_search_returns_artists():
@@ -61,12 +61,13 @@ def test_search_returns_artists():
     client = make_client(setlistfm=FakeSetlistFM(artists=artists))
     resp = client.get("/api/search-artist?q=tool")
     assert resp.status_code == 200
-    assert resp.get_json() == {"artists": artists}
+    assert resp.get_json() == {"artists": artists, "has_more": False}
 
 
 @pytest.mark.parametrize("error,status", [
     ("setlistfm_not_configured", 503),
     ("setlistfm_rate_limited", 429),
+    ("setlistfm_quota_exceeded", 429),
     ("setlistfm_timeout", 504),
     ("setlistfm_connection_error", 502),
     ("setlistfm_http_500", 502),

@@ -23,7 +23,7 @@ def create_search_blueprint(setlistfm: SetlistFMClient, limiter) -> Blueprint:
 
         if err == errors.SETLISTFM_NOT_CONFIGURED:
             return jsonify({"error": err}), 503
-        if err == errors.SETLISTFM_RATE_LIMITED:
+        if err in (errors.SETLISTFM_RATE_LIMITED, errors.SETLISTFM_QUOTA_EXCEEDED):
             return jsonify({"error": err}), 429
         if err:
             status = 504 if "timeout" in err else 502

@@ -64,8 +64,7 @@ class SetlistFMClient:
         if resp.status_code == 429:
             return [], errors.SETLISTFM_RATE_LIMITED, False
         if resp.status_code == 403:
-            return [], errors.SETLISTFM_RATE_LIMITED + "_daily", False
-        
+            return [], errors.SETLISTFM_QUOTA_EXCEEDED, False
         if not resp.ok:
             return [], f"{errors.SETLISTFM_HTTP_PREFIX}{resp.status_code}", False
 
@@ -114,8 +113,10 @@ class SetlistFMClient:
             except requests.ConnectionError:
                 return None, errors.SETLISTFM_CONNECTION_ERROR
 
-            if resp.status_code in (401, 403):
+            if resp.status_code == 401:
                 return None, errors.SETLISTFM_API_KEY_INVALID
+            if resp.status_code == 403:
+                return None, errors.SETLISTFM_QUOTA_EXCEEDED
             if resp.status_code == 429:
                 return None, errors.SETLISTFM_RATE_LIMITED
             if resp.status_code == 404 or not resp.ok:

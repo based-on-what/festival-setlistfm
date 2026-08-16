@@ -10,6 +10,7 @@ const ERROR_MESSAGES = {
   setlistfm_not_configured:         'The server is missing its setlist.fm API key. Contact the site admin.',
   setlistfm_api_key_invalid:        'The setlist.fm API key is invalid or expired. Contact the site admin.',
   setlistfm_rate_limited:           'Too many requests to setlist.fm. Wait a moment and try again.',
+  setlistfm_quota_exceeded:         "The site's daily setlist.fm quota is used up. Try again tomorrow.",
   setlistfm_timeout:                'setlist.fm took too long to respond. Check your connection and try again.',
   setlistfm_connection_error:       'Could not reach setlist.fm. Check your internet connection.',
   setlistfm_error:                  'setlist.fm returned an unexpected error. Try again in a moment.',

@@ -113,7 +113,11 @@ class PlaylistBuilder:
         mbid = artist.get("mbid")
         songs, err = self._setlistfm.get_recent_setlist(mbid, name, include_taped)
 
-        if err in (errors.SETLISTFM_API_KEY_INVALID, errors.SETLISTFM_RATE_LIMITED):
+        if err in (
+            errors.SETLISTFM_API_KEY_INVALID,
+            errors.SETLISTFM_RATE_LIMITED,
+            errors.SETLISTFM_QUOTA_EXCEEDED,
+        ):
             raise RuntimeError(err)
 
         if not songs:
