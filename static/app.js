@@ -339,6 +339,7 @@ function showResult(data) {
   warningBox.innerHTML = '';
 
   const noSetlist = (data.artists || []).filter(a => a.status === 'no_setlist');
+  const topTracks = (data.artists || []).filter(a => a.status === 'top_tracks');
   const noTracks  = (data.artists || []).filter(a => a.status === 'no_tracks');
   const timedOut  = (data.artists || []).filter(a => a.status === 'timeout');
   const missing   = (data.artists || []).filter(a => a.missing?.length > 0);
@@ -357,6 +358,13 @@ function showResult(data) {
       <div class="warning-row">
         <span class="warning-artist">📭 No recent setlist found for:</span>
         <span class="warning-songs">${noSetlist.map(a => escapeHtml(a.name)).join(', ')}</span>
+      </div>`);
+  }
+  if (topTracks.length) {
+    warnings.push(`
+      <div class="warning-row">
+        <span class="warning-artist">🎧 No recent setlist, used their top Spotify tracks for:</span>
+        <span class="warning-songs">${topTracks.map(a => escapeHtml(a.name)).join(', ')}</span>
       </div>`);
   }
   if (noTracks.length) {
@@ -402,6 +410,9 @@ function showResult(data) {
     if (a.status === 'ok') {
       statusClass = 'status-ok';
       statusText  = `${a.tracks} track${a.tracks !== 1 ? 's' : ''}`;
+    } else if (a.status === 'top_tracks') {
+      statusClass = 'status-ok';
+      statusText  = `${a.tracks} top track${a.tracks !== 1 ? 's' : ''} (no setlist)`;
     } else if (a.status === 'no_tracks') {
       statusClass = 'status-warn';
       statusText  = 'Setlist found, no tracks on Spotify';

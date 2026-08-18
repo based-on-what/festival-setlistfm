@@ -179,3 +179,27 @@ def test_add_tracks_counts_failed_chunk():
     session = FakeSession(post_responses=[FakeResponse(status_code=500)])
     client = SpotifyClient(CONFIG, session, FakeSession())
     assert client.add_tracks("pl1", ["t1"]) == 1
+
+
+def artist_payload(*names_ids):
+    return FakeResponse(json_data={"artists": {"items": [{"id": i, "name": n} for n, i in names_ids]}})
+
+
+def test_get_top_tracks_matches_artist_and_caps_limit():
+    client, session = make_client([
+        artist_payload(("Other Band", "a0"), ("Nouvelle Gaia", "a1")),
+        FakeResponse(json_data={"tracks": [{"id": f"t{i}"} for i in range(12)]}),
+    ])
+    assert client.get_top_tracks("nouvelle gaia", limit=10) == [f"t{i}" for i in range(10)]
+    assert session.get_calls == 2
+
+
+def test_get_top_tracks_returns_empty_when_artist_not_matched():
+    client, session = make_client([artist_payload(("Someone Else", "a0"))])
+    assert client.get_top_tracks("Nouvelle Gaia") == []
+    assert session.get_calls == 1
+
+
+def test_get_top_tracks_returns_empty_on_http_error():
+    client, _ = make_client([FakeResponse(status_code=500)])
+    assert client.get_top_tracks("Nouvelle Gaia") == []

@@ -29,7 +29,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # Cache-busting version for /static assets; bump when JS/CSS change.
-ASSET_VERSION = "3"
+ASSET_VERSION = "4"
 
 
 def create_app(

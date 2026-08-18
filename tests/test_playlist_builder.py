@@ -12,11 +12,14 @@ SONG = {"name": "Song", "cover_artist": None, "is_medley_candidate": False, "is_
 class FakeSetlistFM:
     """Returns one song per artist; sleeps per-artist to simulate slowness."""
 
-    def __init__(self, delays=None):
+    def __init__(self, delays=None, without_setlist=()):
         self.delays = delays or {}
+        self.without_setlist = set(without_setlist)
 
     def get_recent_setlist(self, mbid, artist_name, include_taped):
         time.sleep(self.delays.get(artist_name, 0))
+        if artist_name in self.without_setlist:
+            return None, None
         return [SONG], None
 
 
@@ -30,8 +33,12 @@ class FakeResolver:
 
 
 class FakeSpotify:
-    def __init__(self):
+    def __init__(self, top_tracks=None):
         self.added = None
+        self.top_tracks = top_tracks or {}
+
+    def get_top_tracks(self, artist_name, limit=10):
+        return self.top_tracks.get(artist_name, [])[:limit]
 
     def get_current_user_id(self):
         return "user"
@@ -87,3 +94,30 @@ def test_progress_callback_invoked(executor):
         progress_cb=lambda done, total: calls.append((done, total)),
     )
     assert calls == [(1, 2), (2, 2)]
+
+
+def test_artist_without_setlist_falls_back_to_top_tracks(executor):
+    setlistfm = FakeSetlistFM(without_setlist=["Nouvelle Gaia"])
+    spotify = FakeSpotify(top_tracks={"Nouvelle Gaia": [f"top{i}" for i in range(12)]})
+    builder = PlaylistBuilder(setlistfm, FakeResolver(), spotify, executor)
+    result = builder.build(
+        [{"name": "Nouvelle Gaia"}, {"name": "B"}],
+        prefer_original=True, include_taped=False, playlist_name="X",
+    )
+    gaia = next(a for a in result["artists"] if a["name"] == "Nouvelle Gaia")
+    assert gaia["status"] == "top_tracks"
+    assert gaia["tracks"] == 10
+    assert spotify.added == [f"top{i}" for i in range(10)] + ["id_B"]
+
+
+def test_artist_without_setlist_and_without_top_tracks_stays_no_setlist(executor):
+    setlistfm = FakeSetlistFM(without_setlist=["Ghost"])
+    spotify = FakeSpotify()
+    builder = PlaylistBuilder(setlistfm, FakeResolver(), spotify, executor)
+    result = builder.build(
+        [{"name": "Ghost"}, {"name": "B"}],
+        prefer_original=True, include_taped=False, playlist_name="X",
+    )
+    ghost = next(a for a in result["artists"] if a["name"] == "Ghost")
+    assert ghost["status"] == "no_setlist"
+    assert ghost["tracks"] == 0
