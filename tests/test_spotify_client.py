@@ -29,9 +29,14 @@ class FakeResponse:
         return self._json
 
 
-def track_payload(track_id):
-    items = [{"id": track_id}] if track_id else []
+def track_payload(track_id, artist="Artist"):
+    items = [{"id": track_id, "artists": [{"name": artist}]}] if track_id else []
     return {"tracks": {"items": items}}
+
+
+def multi_track_payload(*pairs):
+    """pairs: (track_id, artist_name) en el orden que los devuelve Spotify."""
+    return {"tracks": {"items": [{"id": tid, "artists": [{"name": a}]} for tid, a in pairs]}}
 
 
 class FakeSession:
@@ -119,6 +124,46 @@ def test_retry_after_capped_at_2s(monkeypatch):
     assert sleeps == [2.0]
 
 
+def test_search_track_skips_wrong_artist():
+    """Spotify devuelve un track de otro intérprete: no debe aceptarse."""
+    payload = multi_track_payload(("wrong", "Otra Banda"), ("right", "Artist"))
+    client, _ = make_client([FakeResponse(json_data=payload)])
+    assert client.search_track("Artist", "Song") == "right"
+
+
+def test_search_track_no_artist_match_is_none():
+    payload = multi_track_payload(("wrong", "Otra Banda"))
+    client, _ = make_client([FakeResponse(json_data=payload)])
+    assert client.search_track("Artist", "Song") is None
+
+
+def test_search_track_matches_artist_leniently():
+    """'The Beatles' debe casar con 'Beatles' y viceversa."""
+    payload = multi_track_payload(("t1", "The Beatles"))
+    client, _ = make_client([FakeResponse(json_data=payload)])
+    assert client.search_track("Beatles", "Song") == "t1"
+
+
+def test_search_track_ignores_accents_and_punctuation():
+    payload = multi_track_payload(("t1", "Héroes del Silencio"))
+    client, _ = make_client([FakeResponse(json_data=payload)])
+    assert client.search_track("Heroes del Silencio", "Song") == "t1"
+
+
+def test_search_track_prefers_exact_artist_over_lenient():
+    """El match exacto gana aunque aparezca después en los resultados."""
+    payload = multi_track_payload(("lenient", "Artist Tribute Band"), ("exact", "Artist"))
+    client, _ = make_client([FakeResponse(json_data=payload)])
+    assert client.search_track("Artist", "Song") == "exact"
+
+
+def test_search_track_without_artist_takes_first_item():
+    """Fallback de medley: sin artista se acepta el primer resultado tal cual."""
+    payload = multi_track_payload(("t1", "Cualquiera"))
+    client, _ = make_client([FakeResponse(json_data=payload)])
+    assert client.search_track(None, "Song") == "t1"
+
+
 def test_add_tracks_retries_chunk_on_429(monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda s: None)
     # Main session posts: first 429, then 201. Token refresh goes to auth_session.
@@ -134,3 +179,27 @@ def test_add_tracks_counts_failed_chunk():
     session = FakeSession(post_responses=[FakeResponse(status_code=500)])
     client = SpotifyClient(CONFIG, session, FakeSession())
     assert client.add_tracks("pl1", ["t1"]) == 1
+
+
+def artist_payload(*names_ids):
+    return FakeResponse(json_data={"artists": {"items": [{"id": i, "name": n} for n, i in names_ids]}})
+
+
+def test_get_top_tracks_matches_artist_and_caps_limit():
+    client, session = make_client([
+        artist_payload(("Other Band", "a0"), ("Nouvelle Gaia", "a1")),
+        FakeResponse(json_data={"tracks": [{"id": f"t{i}"} for i in range(12)]}),
+    ])
+    assert client.get_top_tracks("nouvelle gaia", limit=10) == [f"t{i}" for i in range(10)]
+    assert session.get_calls == 2
+
+
+def test_get_top_tracks_returns_empty_when_artist_not_matched():
+    client, session = make_client([artist_payload(("Someone Else", "a0"))])
+    assert client.get_top_tracks("Nouvelle Gaia") == []
+    assert session.get_calls == 1
+
+
+def test_get_top_tracks_returns_empty_on_http_error():
+    client, _ = make_client([FakeResponse(status_code=500)])
+    assert client.get_top_tracks("Nouvelle Gaia") == []

@@ -40,6 +40,20 @@ def _pick_track_for_artist(search_artist: str, items: list[dict]) -> Optional[st
                 return item["id"]
     return None
 
+
+def _pick_artist(search_artist: str, items: list[dict]) -> Optional[str]:
+    """ID del artista cuyo nombre coincide con search_artist (exacto, luego leniente)."""
+    norm = _normalize_artist(search_artist)
+    for item in items:
+        if _normalize_artist(item["name"]) == norm:
+            return item["id"]
+    for item in items:
+        ta = _normalize_artist(item["name"])
+        if norm in ta or ta in norm:
+            return item["id"]
+    return None
+
+
 # Sentinel cached for "track not on Spotify" so known misses don't re-query.
 _SEARCH_MISS = object()
 
@@ -122,7 +136,9 @@ class SpotifyClient:
                 return None if cached is _SEARCH_MISS else cached
 
         q = f'artist:"{artist_name}" track:"{track_name}"' if artist_name else f'track:"{track_name}"'
-        params = {"q": q, "type": "track", "limit": 5 if artist_name else 1}  # ← era limit: 1
+        # Con artista pedimos 5 candidatos para poder descartar los que Spotify
+        # devuelve de otros intérpretes; sin artista basta el primero.
+        params = {"q": q, "type": "track", "limit": 5 if artist_name else 1}
 
         def do_get():
             return self._session.get(
@@ -144,17 +160,48 @@ class SpotifyClient:
 
         items = r.json().get("tracks", {}).get("items", [])
 
-        # ↓ reemplaza las dos líneas originales
         if not items:
             tid = None
         elif artist_name:
-            tid = _pick_track_for_artist(artist_name, items)  # valida artista
+            tid = _pick_track_for_artist(artist_name, items)
         else:
             tid = items[0]["id"]
 
         if self._search_cache is not None:
             self._search_cache.set(cache_key, _SEARCH_MISS if tid is None else tid)
         return tid
+
+    def get_top_tracks(self, artist_name: str, limit: int = 10) -> list[str]:
+        """
+        IDs de los tracks mas escuchados del artista en Spotify. Fallback para
+        artistas sin setlist en setlist.fm. Devuelve [] si no se identifica al
+        artista o si la API falla (el caller degrada a "sin setlist").
+        """
+        try:
+            r = self._session.get(
+                f"{SPOTIFY_API_BASE}/search",
+                headers=self.auth_headers(),
+                params={"q": f'artist:"{artist_name}"', "type": "artist", "limit": 5},
+                timeout=6,
+            )
+            if not r.ok:
+                return []
+            artist_id = _pick_artist(artist_name, r.json().get("artists", {}).get("items", []))
+            if not artist_id:
+                return []
+
+            # market se omite a proposito: el token es de usuario, asi que Spotify
+            # filtra por el pais de la cuenta admin.
+            r = self._session.get(
+                f"{SPOTIFY_API_BASE}/artists/{artist_id}/top-tracks",
+                headers=self.auth_headers(),
+                timeout=6,
+            )
+            if not r.ok:
+                return []
+        except (requests.Timeout, requests.ConnectionError):
+            return []
+        return [t["id"] for t in r.json().get("tracks", [])[:limit]]
 
     def get_current_user_id(self) -> str:
         try:

@@ -11,6 +11,9 @@ from services.track_resolver import TrackResolver
 
 log = logging.getLogger(__name__)
 
+# Canciones a usar cuando el artista no tiene setlist reciente en setlist.fm.
+_TOP_TRACKS_FALLBACK = 10
+
 _DESCRIPTION = "Created by Festival SetlistFM Creator – https://festival-setlistfm.up.railway.app/"
 
 
@@ -113,11 +116,22 @@ class PlaylistBuilder:
         mbid = artist.get("mbid")
         songs, err = self._setlistfm.get_recent_setlist(mbid, name, include_taped)
 
-        if err in (errors.SETLISTFM_API_KEY_INVALID, errors.SETLISTFM_RATE_LIMITED):
+        if err in (
+            errors.SETLISTFM_API_KEY_INVALID,
+            errors.SETLISTFM_RATE_LIMITED,
+            errors.SETLISTFM_QUOTA_EXCEEDED,
+        ):
             raise RuntimeError(err)
 
         if not songs:
-            log.info("rid=%s no setlist found for artist=%s err=%s", request_id, name, err)
+            # Sin setlist reciente: caemos a los top tracks del artista en Spotify.
+            top = self._spotify.get_top_tracks(name, limit=_TOP_TRACKS_FALLBACK)
+            log.info(
+                "rid=%s no setlist for artist=%s err=%s top_tracks=%d",
+                request_id, name, err, len(top),
+            )
+            if top:
+                return top, {"name": name, "status": "top_tracks", "tracks": len(top), "missing": []}
             return [], {"name": name, "status": "no_setlist", "tracks": 0, "missing": []}
 
         track_ids, missing = self._resolver.resolve_all(name, songs, prefer_original)

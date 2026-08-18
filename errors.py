@@ -11,6 +11,7 @@ SETLISTFM_TIMEOUT          = "setlistfm_timeout"
 SETLISTFM_CONNECTION_ERROR = "setlistfm_connection_error"
 SETLISTFM_API_KEY_INVALID  = "setlistfm_api_key_invalid"
 SETLISTFM_RATE_LIMITED     = "setlistfm_rate_limited"
+SETLISTFM_QUOTA_EXCEEDED   = "setlistfm_quota_exceeded"  # 403: cupo diario agotado
 SETLISTFM_HTTP_PREFIX      = "setlistfm_http_"  # dynamic: setlistfm_http_<status>
 
 # Spotify
@@ -40,6 +41,7 @@ FRONTEND_CATALOG_CODES = [
     SETLISTFM_CONNECTION_ERROR,
     SETLISTFM_API_KEY_INVALID,
     SETLISTFM_RATE_LIMITED,
+    SETLISTFM_QUOTA_EXCEEDED,
     SPOTIFY_NOT_CONFIGURED,
     SPOTIFY_REFRESH_TOKEN_MISSING,
     SPOTIFY_REFRESH_TOKEN_INVALID,

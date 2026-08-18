@@ -9,3 +9,7 @@ venv/
 AGENTS.md
 CLAUDE.md
 .pytest_cache/
+.gstack/
+__pycache__/
+*.py[cod]
+.env
